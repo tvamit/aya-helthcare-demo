@@ -1,0 +1,6 @@
+# Vector Search Service Dependencies
+flask==3.0.3
+flask-cors==5.0.0
+chromadb==0.4.22
+sentence-transformers==2.3.1
+numpy<2.0

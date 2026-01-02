@@ -1,0 +1,97 @@
+# Apollo Hospital Complete Knowledge Base
+# Add as many lines as you want, vector DB will handle it!
+
+# Hospital Basic Info
+Apollo Hospital Sector 26 Delhi me hai.
+Hospital ka phone number 1860-500-1066 hai.
+Hospital 1995 me establish hua tha.
+24/7 emergency services available hai.
+
+# All Departments (Add unlimited)
+Cardiology 3rd floor par hai, heart problems ke liye.
+Neurology 4th floor par hai, brain problems ke liye.
+Orthopedics 2nd floor par hai, bone problems ke liye.
+Pediatrics 1st floor par hai, baccho ke liye.
+Gynecology 5th floor par hai, women health ke liye.
+Gastroenterology 3rd floor par hai, pet problems ke liye.
+Pulmonology 4th floor par hai, lung problems ke liye.
+Nephrology 2nd floor par hai, kidney problems ke liye.
+Oncology 6th floor par hai, cancer treatment ke liye.
+Dermatology 6th floor par hai, skin problems ke liye.
+ENT 5th floor par hai, ear nose throat problems ke liye.
+Dentistry 1st floor par hai, teeth problems ke liye.
+Ophthalmology 2nd floor par hai, eye problems ke liye.
+Urology 3rd floor par hai, urinary problems ke liye.
+Psychiatry 4th floor par hai, mental health ke liye.
+
+# All Doctors (Add unlimited)
+Dr. Rajesh Kumar cardiologist hai, fees 1500 rupees, Mon Wed Fri 10AM-2PM available.
+Dr. Priya Sharma gynecologist hai, fees 1200 rupees, Mon-Sat 9AM-5PM available.
+Dr. Amit Patel orthopedic surgeon hai, fees 1000 rupees, Tue Thu Sat 11AM-5PM.
+Dr. Sneha Reddy pediatrician hai, fees 800 rupees, Mon-Sat 8AM-2PM available.
+Dr. Vikram Singh neurologist hai, fees 1500 rupees, Mon Wed Fri 2PM-6PM.
+Dr. Anjali Gupta dermatologist hai, fees 900 rupees, Tue Thu Sat 10AM-4PM.
+Dr. Suresh Menon gastroenterologist hai, fees 1300 rupees, Mon-Fri 11AM-3PM.
+Dr. Kavita Desai oncologist hai, fees 1800 rupees, Mon Wed Fri 10AM-2PM.
+
+# Facilities Detail
+ICU me 50 beds hai, price 5000 rupees per day.
+General ward me 200 beds hai, price 1500 rupees per day.
+Private room price 3000 rupees per day hai.
+Deluxe room price 5000 rupees per day hai.
+NICU me 20 beds hai, price 7000 rupees per day.
+
+# Services
+Pharmacy 24/7 open rehti hai ground floor par.
+Lab 24/7 open hai, blood test same day report.
+X-ray report 2 hours me mil jati hai.
+MRI aur CT scan next day report.
+Ambulance 24/7 available, call 1860-500-1066.
+Blood bank basement me hai, 24/7 available.
+
+# Booking Process
+Appointment book karne ke liye 1860-500-1066 call karo.
+Online booking www.apollohospital.com se kar sakte ho.
+Admission ke liye doctor consultation jaruri hai.
+Aadhar card lana jaruri hai admission ke liye.
+
+# Timings
+OPD timing Mon-Sat 9AM-5PM hai.
+Emergency 24/7 khuli rehti hai.
+Visiting hours: General ward 11AM-1PM aur 5PM-7PM.
+ICU visiting: 11AM aur 5PM, 30 minutes.
+
+# Insurance
+Cashless insurance: Star Health, ICICI Lombard, HDFC Ergo.
+All major insurance companies ke saath tie-up hai.
+Insurance card lao, hum approval handle karte hai.
+
+# Parking & Facilities
+Parking Rs 20 per hour hai.
+Wheelchair free me available hai reception se.
+ATM ground floor par hai, SBI aur HDFC.
+Food court 1st floor par hai, 7AM-10PM.
+Cafeteria hygienic food provide karta hai.
+
+# COVID Protocol
+Mask mandatory hai sabhi ke liye.
+COVID test available hai, RT-PCR 500 rupees.
+Rapid Antigen test 300 rupees.
+Report 6-24 hours me mil jati hai.
+Vaccination walk-in available hai.
+
+# Emergency Numbers
+Main reception: 1860-500-1066
+Ambulance: 1860-500-1066 press 1
+Emergency: 1860-500-1066 press 2
+Pharmacy: 1860-500-1067
+Diagnostics: 1860-500-1068
+
+# Common Questions
+Full body checkup package 2500 rupees basic, 5000 comprehensive.
+Home sample collection available hai lab ke liye.
+Reports online bhi mil jati hai email par.
+Medicine home delivery bhi hoti hai.
+
+# Add as many more lines as you want!
+# Vector DB automatically handles thousands of lines!

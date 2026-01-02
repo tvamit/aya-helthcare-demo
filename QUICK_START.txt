@@ -1,0 +1,139 @@
+╔══════════════════════════════════════════════════════════════╗
+║     HOSPITAL AI VOICE ASSISTANT - QUICK START               ║
+║     Latest 2026 Version | 100% FREE Setup                   ║
+╚══════════════════════════════════════════════════════════════╝
+
+🚀 FASTEST WAY TO START (Docker):
+═══════════════════════════════════════════════════════════════
+
+1. Get FREE Groq API Key:
+   → https://console.groq.com
+   → Sign up (free)
+   → Create API Key
+
+2. Add API Key:
+   → Edit: backend/.env
+   → Add: GROQ_API_KEY=gsk_your_key_here
+
+3. Start Everything:
+   → docker-compose up -d
+
+4. Seed Database:
+   → docker exec hospital-backend node /app/../database/seed.js
+
+5. Open Browser:
+   → http://localhost:8080
+
+✅ DONE!
+
+═══════════════════════════════════════════════════════════════
+
+🛠️ MANUAL SETUP (5 Terminals):
+═══════════════════════════════════════════════════════════════
+
+Terminal 1 - Whisper STT:
+--------------------------
+cd python-services/whisper-stt
+pip install -r requirements.txt
+python app.py
+
+Terminal 2 - Coqui TTS:
+-----------------------
+cd python-services/coqui-tts
+pip install -r requirements.txt
+python app.py
+
+Terminal 3 - Backend:
+--------------------
+cd backend
+npm install
+cp .env.example .env
+nano .env  (Add GROQ_API_KEY)
+npm start
+
+Terminal 4 - Database:
+---------------------
+cd database
+node seed.js
+
+Terminal 5 - Frontend:
+---------------------
+cd frontend
+python -m http.server 8080
+
+✅ DONE! Open: http://localhost:8080
+
+═══════════════════════════════════════════════════════════════
+
+📦 WHAT YOU GET:
+═══════════════════════════════════════════════════════════════
+
+✓ Voice Input/Output (Hindi + English)
+✓ AI-Powered Responses (Groq FREE LLM)
+✓ Speech-to-Text (Whisper - FREE)
+✓ Text-to-Speech (Coqui - FREE)
+✓ Real-time Database (MongoDB)
+✓ Beautiful Single Page UI
+✓ Docker Ready
+✓ Sample Data Included
+
+═══════════════════════════════════════════════════════════════
+
+🎤 EXAMPLE QUERIES:
+═══════════════════════════════════════════════════════════════
+
+Hindi:
+------
+"ICU mein bed available hai kya?"
+"Cardiologist doctor chahiye"
+"Emergency number batao"
+
+English:
+--------
+"Are beds available?"
+"I need a doctor"
+"Hospital timings?"
+
+═══════════════════════════════════════════════════════════════
+
+🔍 CHECK STATUS:
+═══════════════════════════════════════════════════════════════
+
+curl http://localhost:5001/health   # Whisper STT
+curl http://localhost:5002/health   # Coqui TTS
+curl http://localhost:3000/api/health   # Backend
+
+═══════════════════════════════════════════════════════════════
+
+💰 TOTAL COST: ₹0 (100% FREE!)
+═══════════════════════════════════════════════════════════════
+
+✓ Whisper STT - FREE (self-hosted)
+✓ Coqui TTS - FREE (self-hosted)
+✓ Groq AI - FREE (14,400 req/day)
+✓ MongoDB - FREE (community)
+
+Only pay for server: ~₹500-1000/month
+
+═══════════════════════════════════════════════════════════════
+
+📚 DETAILED GUIDES:
+═══════════════════════════════════════════════════════════════
+
+→ README.md - Complete documentation
+→ SETUP_GUIDE.md - Step-by-step setup (Hindi + English)
+
+═══════════════════════════════════════════════════════════════
+
+🎯 PORTS USED:
+═══════════════════════════════════════════════════════════════
+
+5001 - Whisper STT
+5002 - Coqui TTS
+3000 - Backend API
+8080 - Frontend UI
+27017 - MongoDB
+
+═══════════════════════════════════════════════════════════════
+
+Made with ❤️ for Healthcare | Version 1.0.0 (2026)
