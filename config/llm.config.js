@@ -7,11 +7,11 @@
 const LLM_CONFIG = {
   // LLM Provider settings
   provider: process.env.LLM_PROVIDER || 'ollama',
-  model: process.env.LLM_MODEL || 'llama3.1:8b',
+  model: process.env.LLM_MODEL || 'llama3.2:3b',  // Faster model (3B vs 8B)
 
   // Generation parameters
-  temperature: 0.2,  // Low temperature for consistent, factual responses
-  maxTokens: 200,    // Short responses for voice conversations
+  temperature: 0.1,  // Lower temperature = faster + more deterministic
+  maxTokens: 120,    // Reduced for faster generation (still enough for 1-3 sentences)
   topP: 0.9,
 
   // Provider-specific base URLs
@@ -32,7 +32,7 @@ const LLM_CONFIG = {
 Your Role:
 - Answer ONLY hospital-related questions (facilities, doctors, appointments, services, departments)
 - Provide accurate information based on the hospital data provided
-- Keep responses SHORT (1-3 sentences maximum) for voice conversations
+- Keep responses SHORT (1-2 sentences maximum) for voice conversations
 - Be warm, reassuring, and empathetic
 - Use simple, clear language
 
@@ -58,8 +58,8 @@ Examples:
 ❌ Bad: "Based on your symptoms, you might have..."
 ✅ Good: "I can't diagnose symptoms, but I can help you book an appointment with our general physician."`,
 
-  // Response timeout (in milliseconds)
-  timeout: 15000,
+  // Response timeout (in milliseconds) - Reduced for faster failure/fallback
+  timeout: 10000,
 
   // Retry configuration
   retry: {

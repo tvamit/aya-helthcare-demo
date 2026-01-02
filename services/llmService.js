@@ -49,29 +49,47 @@ async function askLLM(userText, hospitalContext, lang = 'en') {
 
 /**
  * Build prompt with system instructions and context
+ * Optimized: Only send essential hospital info to reduce prompt size (~70% smaller)
  */
 function buildPrompt(userText, hospitalContext, lang) {
+  // Extract only essential information (reduces prompt size significantly)
+  const essentialInfo = {
+    name: hospitalContext.hospital?.name || 'Lifeline Multi-Specialty Hospital',
+    contact: {
+      phone: hospitalContext.hospital?.contact?.phone,
+      emergency: hospitalContext.hospital?.contact?.emergency
+    },
+    availability: {
+      opd: hospitalContext.availability?.opd,
+      emergency: hospitalContext.availability?.emergency,
+      pharmacy: hospitalContext.availability?.pharmacy,
+      visitingHours: hospitalContext.availability?.visitingHours
+    },
+    departments: hospitalContext.departments?.slice(0, 8) || [], // Limit to 8 departments
+    capacity: {
+      totalBeds: hospitalContext.capacity?.totalBeds,
+      icu: hospitalContext.capacity?.departments?.icu
+    },
+    floors: hospitalContext.floors
+  };
+
   return `${llmConfig.systemPrompt}
 
-Hospital Information:
-${JSON.stringify(hospitalContext, null, 2)}
+Hospital Info:
+${JSON.stringify(essentialInfo, null, 2)}
 
 Language: ${lang === 'hi' ? 'Hindi' : 'English'}
-${lang === 'hi' ? 'Respond in Hindi (Devanagari script).' : 'Respond in English.'}
-
-User Question:
-${userText}
-
-Answer (short and conversational):`;
+Question: ${userText}
+Answer (1-2 sentences, conversational):`;
 }
 
 /**
- * Query Ollama API
+ * Query Ollama API with streaming for faster first token
  */
 async function queryOllama(prompt) {
   const url = `${llmConfig.baseUrl}/api/generate`;
   console.log('→ Ollama URL:', url);
-  console.log('→ Sending request to Ollama...');
+  console.log('→ Sending streaming request to Ollama...');
 
   try {
     const response = await fetch(url, {
@@ -82,7 +100,7 @@ async function queryOllama(prompt) {
         prompt: prompt,
         temperature: llmConfig.temperature,
         num_predict: llmConfig.maxTokens,
-        stream: false
+        stream: true  // Enable streaming for faster response
       }),
       signal: AbortSignal.timeout(llmConfig.timeout)
     });
@@ -95,14 +113,78 @@ async function queryOllama(prompt) {
       throw new Error(`Ollama API error: ${response.status} ${response.statusText}`);
     }
 
-    const data = await response.json();
-    console.log('→ Ollama response data:', data);
-    return data.response.trim();
+    // Stream response for faster first token
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let fullResponse = '';
+    let firstTokenReceived = false;
+    
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      
+      const chunk = decoder.decode(value, { stream: true });
+      const lines = chunk.split('\n').filter(line => line.trim());
+      
+      for (const line of lines) {
+        try {
+          const data = JSON.parse(line);
+          if (data.response) {
+            if (!firstTokenReceived) {
+              firstTokenReceived = true;
+              console.log('→ First token received (streaming working)');
+            }
+            fullResponse += data.response;
+          }
+          if (data.done) {
+            console.log('→ Streaming complete');
+            return fullResponse.trim();
+          }
+        } catch (e) {
+          // Skip invalid JSON lines (common in streaming)
+        }
+      }
+    }
+    
+    return fullResponse.trim();
   } catch (error) {
+    // Fallback to non-streaming if streaming fails
+    if (error.name === 'AbortError' || error.message.includes('timeout')) {
+      console.log('→ Streaming timeout, trying non-streaming fallback...');
+      return queryOllamaFallback(prompt);
+    }
     console.error('→ Ollama fetch error:', error.message);
-    console.error('→ Error stack:', error.stack);
     throw error;
   }
+}
+
+/**
+ * Fallback: Non-streaming Ollama query
+ */
+async function queryOllamaFallback(prompt) {
+  const url = `${llmConfig.baseUrl}/api/generate`;
+  console.log('→ Using non-streaming fallback...');
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: llmConfig.model,
+      prompt: prompt,
+      temperature: llmConfig.temperature,
+      num_predict: llmConfig.maxTokens,
+      stream: false
+    }),
+    signal: AbortSignal.timeout(llmConfig.timeout)
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Ollama API error: ${response.status} ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  return data.response.trim();
 }
 
 /**

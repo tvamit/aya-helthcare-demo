@@ -159,12 +159,18 @@
         let isPlaying = false;
         let recognition = null;
         let isListening = false;
+        
+        // Streaming audio queue for chunked TTS
+        let streamingAudioQueue = [];
+        let isPlayingStreamingQueue = false;
+        let currentStreamingAudio = null;
 
         // Microphone recording variables
         let mediaStream = null;
         let mediaRecorder = null;
         let audioChunks = [];
         let isMuted = true;
+        let recordingStartTime = null;
 
         const muteBtn = document.getElementById('muteBtn');
         const askBtn = document.getElementById('askBtn');
@@ -328,8 +334,39 @@
                         if (message.type === 'WELCOME_AUDIO') {
                             console.log('🎵 WELCOME_AUDIO message detected!');
                             await playWelcomeAudio(message.url);
+                        } else if (message.type === 'AI_RESPONSE_START') {
+                            console.log('🤖 AI_RESPONSE_START message detected!');
+                            console.log('→ Response text:', message.text);
+                            // Show text immediately
+                            transcriptText.textContent = `AI: ${message.text}`;
+                            transcriptDiv.style.display = 'block';
+                            updateStatus('Generating response...', 'processing');
+                            
+                            // Clear previous streaming queue
+                            streamingAudioQueue = [];
+                            isPlayingStreamingQueue = false;
+                            if (currentStreamingAudio) {
+                                currentStreamingAudio.pause();
+                                currentStreamingAudio = null;
+                            }
+                        } else if (message.type === 'AI_RESPONSE_CHUNK') {
+                            console.log(`📦 AI_RESPONSE_CHUNK received (chunk ${message.chunkId}): ${message.url}`);
+                            // Add chunk to streaming queue and play if not already playing
+                            streamingAudioQueue.push({
+                                url: message.url,
+                                chunkId: message.chunkId,
+                                text: message.text
+                            });
+                            
+                            // Start playing if queue was empty
+                            if (!isPlayingStreamingQueue) {
+                                playNextStreamingChunk();
+                            }
+                        } else if (message.type === 'AI_RESPONSE_END') {
+                            console.log(`✅ AI_RESPONSE_END - All ${message.totalChunks} chunks received`);
+                            updateStatus('Response complete', 'connected');
                         } else if (message.type === 'AI_RESPONSE') {
-                            console.log('🤖 AI_RESPONSE message detected!');
+                            console.log('🤖 AI_RESPONSE message detected! (backward compatibility)');
                             console.log('→ Response text:', message.text);
                             console.log('→ Response audio URL:', message.url);
                             await handleAIResponse(message);
@@ -365,7 +402,7 @@
             };
         }
 
-        // Handle AI response
+        // Handle AI response (backward compatibility for single audio file)
         async function handleAIResponse(message) {
             console.log('AI Response:', message.text);
 
@@ -378,6 +415,52 @@
             }
 
             updateStatus('In Call (Muted)', 'connected');
+        }
+
+        // Enhanced audio queue player for streaming chunks
+        async function playNextStreamingChunk() {
+            if (streamingAudioQueue.length === 0) {
+                isPlayingStreamingQueue = false;
+                console.log('✅ Streaming audio queue finished');
+                return;
+            }
+
+            isPlayingStreamingQueue = true;
+            const chunk = streamingAudioQueue.shift();
+            
+            console.log(`▶️  Playing streaming chunk ${chunk.chunkId}: ${chunk.url}`);
+            
+            try {
+                const audio = new Audio(chunk.url);
+                currentStreamingAudio = audio;
+                
+                audio.onloadeddata = () => {
+                    console.log(`→ Chunk ${chunk.chunkId} loaded, duration: ${audio.duration}s`);
+                };
+                
+                audio.onended = () => {
+                    console.log(`✅ Chunk ${chunk.chunkId} finished`);
+                    currentStreamingAudio = null;
+                    // Play next chunk immediately
+                    playNextStreamingChunk();
+                };
+                
+                audio.onerror = (error) => {
+                    console.error(`❌ Error playing chunk ${chunk.chunkId}:`, error);
+                    currentStreamingAudio = null;
+                    // Continue with next chunk even if this one fails
+                    playNextStreamingChunk();
+                };
+                
+                // Play the audio
+                await audio.play();
+                
+            } catch (error) {
+                console.error(`❌ Error loading chunk ${chunk.chunkId}:`, error);
+                currentStreamingAudio = null;
+                // Continue with next chunk
+                playNextStreamingChunk();
+            }
         }
 
         // Update status display
@@ -424,36 +507,73 @@
                     mimeType: mimeType
                 });
 
+                // Track if we're waiting for final chunks
+                let isProcessingStop = false;
+                let stopProcessingTimeout = null;
+
                 mediaRecorder.ondataavailable = (event) => {
                     console.log('→ Audio chunk received:', event.data.size, 'bytes');
                     if (event.data.size > 0) {
                         audioChunks.push(event.data);
+                        console.log('→ Total chunks so far:', audioChunks.length);
+                        console.log('→ Chunk added, total size:', audioChunks.reduce((sum, chunk) => sum + chunk.size, 0), 'bytes');
+                    } else {
+                        console.warn('⚠️  Received empty chunk');
+                    }
+
+                    // If we're processing stop, clear the timeout and process
+                    if (isProcessingStop && stopProcessingTimeout) {
+                        clearTimeout(stopProcessingTimeout);
+                        stopProcessingTimeout = setTimeout(() => {
+                            processRecordedAudio();
+                        }, 100); // Wait 100ms for any remaining chunks
                     }
                 };
 
-                mediaRecorder.onstop = async () => {
+                // Function to process the recorded audio
+                async function processRecordedAudio() {
+                    if (stopProcessingTimeout) {
+                        clearTimeout(stopProcessingTimeout);
+                        stopProcessingTimeout = null;
+                    }
+                    isProcessingStop = false;
+
                     console.log('\n========================================');
-                    console.log('🎤 RECORDING STOPPED');
+                    console.log('🎤 PROCESSING RECORDED AUDIO');
                     console.log('========================================');
                     console.log('→ Total chunks collected:', audioChunks.length);
+                    console.log('→ Recording duration:', recordingStartTime ? (Date.now() - recordingStartTime) + 'ms' : 'unknown');
 
                     if (audioChunks.length === 0) {
                         console.log('⚠️  No audio chunks collected');
                         updateStatus('No audio recorded. Please try again.', 'disconnected');
+                        recordingStartTime = null;
                         return;
                     }
+
+                    // Calculate total size before creating blob
+                    let totalSize = 0;
+                    audioChunks.forEach((chunk, index) => {
+                        totalSize += chunk.size;
+                        console.log(`→ Chunk ${index + 1} size:`, chunk.size, 'bytes');
+                    });
+                    console.log('→ Total audio data size:', totalSize, 'bytes');
 
                     const audioBlob = new Blob(audioChunks, { type: mimeType });
                     console.log('→ Audio blob created');
                     console.log('→ Blob size:', audioBlob.size, 'bytes');
                     console.log('→ Blob type:', audioBlob.type);
 
+                    const chunksToSend = [...audioChunks]; // Copy for sending
                     audioChunks = [];
+                    recordingStartTime = null; // Reset
 
-                    // Validate audio size
-                    if (audioBlob.size < 1000) {
-                        console.log('⚠️  Audio too short (< 1000 bytes), not sending');
-                        updateStatus('Audio too short. Please speak for at least 2-3 seconds.', 'disconnected');
+                    // Lower minimum: 500 bytes (allows short questions like "OPD का समय क्या है?")
+                    if (audioBlob.size < 500) {
+                        console.log('⚠️  Audio too small (< 500 bytes), not sending');
+                        console.log('→ This might indicate a recording issue. Please check microphone permissions.');
+                        console.log('→ Chunks collected:', chunksToSend.length);
+                        updateStatus('Audio too small. Please check microphone and try again.', 'disconnected');
                         return;
                     }
 
@@ -472,6 +592,29 @@
                         console.error('❌ WebSocket not connected');
                         updateStatus('Connection error. Please try again.', 'disconnected');
                     }
+                }
+
+                mediaRecorder.onstop = () => {
+                    console.log('\n========================================');
+                    console.log('🎤 RECORDING STOPPED EVENT');
+                    console.log('========================================');
+                    console.log('→ MediaRecorder state:', mediaRecorder.state);
+                    console.log('→ Chunks collected so far:', audioChunks.length);
+                    
+                    // Request final data chunk
+                    if (mediaRecorder.state !== 'inactive') {
+                        console.log('→ Requesting final data...');
+                        mediaRecorder.requestData();
+                    }
+
+                    // Mark that we're processing stop and wait for final chunks
+                    isProcessingStop = true;
+                    
+                    // Wait a bit for all ondataavailable events to fire
+                    // Then process the audio
+                    stopProcessingTimeout = setTimeout(() => {
+                        processRecordedAudio();
+                    }, 200); // Wait 200ms for all chunks to arrive
                 };
 
                 muteBtn.disabled = false;
@@ -501,17 +644,19 @@
                 // Unmute - Start recording
                 console.log('→ Action: UNMUTING (start recording)');
                 audioChunks = [];
+                recordingStartTime = Date.now();
 
                 try {
-                    // Start recording without timeslice - collect all until stop()
-                    mediaRecorder.start();
-                    console.log('→ MediaRecorder.start() called (no timeslice - continuous recording)');
+                    // Start recording with timeslice to collect chunks during recording
+                    // This ensures we collect data even if stop() is called quickly
+                    mediaRecorder.start(100); // Get chunks every 100ms
+                    console.log('→ MediaRecorder.start() called (with 100ms timeslice)');
                     console.log('→ MediaRecorder state:', mediaRecorder.state);
 
                     isMuted = false;
                     muteBtn.classList.remove('muted');
                     muteBtn.textContent = '🎤 Unmuted';
-                    updateStatus('Recording... Speak now! (speak for at least 3 seconds)', 'streaming');
+                    updateStatus('Recording... Speak now!', 'streaming');
                     console.log('✅ Recording started');
                 } catch (error) {
                     console.error('❌ Error starting recording:', error);
@@ -519,18 +664,59 @@
             } else {
                 // Mute - Stop recording and send
                 console.log('→ Action: MUTING (stop recording and send)');
+                
+                const recordingDuration = recordingStartTime ? (Date.now() - recordingStartTime) : 0;
+                console.log('→ Recording duration:', recordingDuration, 'ms');
+                console.log('→ Current chunks before stop:', audioChunks.length);
 
-                try {
-                    mediaRecorder.stop();
-                    console.log('→ MediaRecorder.stop() called');
-                    console.log('→ MediaRecorder state:', mediaRecorder.state);
-
+                // Lower minimum: 500ms (0.5 seconds) - allows short questions
+                if (recordingDuration < 500) {
+                    console.log('⚠️  Recording too short (< 500ms), please try again');
+                    updateStatus('Recording too short. Please try again.', 'disconnected');
+                    
+                    // Reset state
                     isMuted = true;
                     muteBtn.classList.add('muted');
                     muteBtn.textContent = '🔇 Muted';
-                    console.log('✅ Recording stopped, audio will be sent when processed');
+                    audioChunks = [];
+                    recordingStartTime = null;
+                    
+                    // Stop the recorder if it's recording
+                    if (mediaRecorder.state === 'recording') {
+                        try {
+                            mediaRecorder.stop();
+                        } catch (e) {
+                            console.error('Error stopping recorder:', e);
+                        }
+                    }
+                    
+                    return;
+                }
+
+                try {
+                    // Request data before stopping to ensure we get the final chunk
+                    if (mediaRecorder.state === 'recording') {
+                        console.log('→ Requesting data before stop...');
+                        mediaRecorder.requestData();
+                    }
+                    
+                    // Small delay to ensure requestData is processed
+                    setTimeout(() => {
+                        mediaRecorder.stop();
+                        console.log('→ MediaRecorder.stop() called');
+                        console.log('→ MediaRecorder state:', mediaRecorder.state);
+                        console.log('→ Recording duration:', recordingDuration, 'ms');
+
+                        isMuted = true;
+                        muteBtn.classList.add('muted');
+                        muteBtn.textContent = '🔇 Muted';
+                        console.log('✅ Recording stopped, waiting for all chunks...');
+                    }, 50); // Small delay to process requestData
                 } catch (error) {
                     console.error('❌ Error stopping recording:', error);
+                    isMuted = true;
+                    muteBtn.classList.add('muted');
+                    muteBtn.textContent = '🔇 Muted';
                 }
             }
 

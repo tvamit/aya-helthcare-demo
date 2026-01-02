@@ -120,5 +120,30 @@ desktop.ini
 # Electron
 dist-electron/
 
-# Generated welcome audio files
+# Generated audio files
 public/welcome_*.wav
+public/chunk_*.wav
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+python-services/venv/
+python-services/env/
+python-services/.venv/
+*.egg-info/
+*.egg
+
+# Python cache
+.pytest_cache/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Python virtual environments
+venv/
+ENV/
+env/
+.venv/

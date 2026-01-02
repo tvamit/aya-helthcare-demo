@@ -1,6 +1,10 @@
 const { askLLM } = require('./llmService');
 const hospitalConfig = require('../config/hospital.config.json');
 
+// Response cache for instant repeat queries
+const responseCache = new Map();
+const CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+
 /**
  * Resolve user query using rule-based logic + LLM fallback
  * @param {string} userText - User's spoken text
@@ -9,21 +13,33 @@ const hospitalConfig = require('../config/hospital.config.json');
  */
 async function resolveUserQuery(userText, lang = 'en') {
   const text = userText.toLowerCase();
+  const cacheKey = `${text}_${lang}`;
+
+  // Check cache first (instant response for repeat queries)
+  if (responseCache.has(cacheKey)) {
+    console.log('\n⚡ Using cached response (instant)');
+    return responseCache.get(cacheKey);
+  }
 
   console.log('\n🧠 Resolving user query...');
   console.log('Input:', userText);
   console.log('Language:', lang);
 
+  let response;
+
   // 🚑 CRITICAL: Emergency detection (highest priority)
   if (isEmergency(text)) {
     console.log('→ Emergency detected! Providing emergency info...');
-    return hospitalConfig.voiceAssistant.emergencyMessage[lang];
+    response = hospitalConfig.voiceAssistant.emergencyMessage[lang];
+    responseCache.set(cacheKey, response);
+    return response;
   }
 
   // ⚡ Fast rule-based responses for common queries
   const quickResponse = getQuickResponse(text, lang);
   if (quickResponse) {
     console.log('→ Quick response matched');
+    responseCache.set(cacheKey, quickResponse);
     return quickResponse;
   }
 
@@ -32,6 +48,11 @@ async function resolveUserQuery(userText, lang = 'en') {
   try {
     const llmResponse = await askLLM(userText, hospitalConfig, lang);
     console.log('→ LLM response received:', llmResponse);
+    
+    // Cache LLM response
+    responseCache.set(cacheKey, llmResponse);
+    setTimeout(() => responseCache.delete(cacheKey), CACHE_TTL);
+    
     return llmResponse;
   } catch (error) {
     console.error('→ LLM error in aiResolver:', error.message);
@@ -165,8 +186,51 @@ function isAfterOpdHours() {
   return hours < 9 || hours >= 20;
 }
 
+/**
+ * Pre-warm cache with common queries for instant responses
+ */
+function prewarmCache() {
+  const commonQueries = [
+    { text: 'opd hours', lang: 'en' },
+    { text: 'visiting hours', lang: 'en' },
+    { text: 'emergency', lang: 'en' },
+    { text: 'pharmacy', lang: 'en' },
+    { text: 'icu', lang: 'en' },
+    { text: 'location', lang: 'en' },
+    { text: 'contact', lang: 'en' },
+    { text: 'departments', lang: 'en' },
+    { text: 'beds', lang: 'en' },
+    { text: 'ambulance', lang: 'en' },
+    // Hindi queries
+    { text: 'ओपीडी', lang: 'hi' },
+    { text: 'एम्बुलेंस', lang: 'hi' },
+    { text: 'फार्मेसी', lang: 'hi' },
+  ];
+  
+  let prewarmedCount = 0;
+  commonQueries.forEach(({ text, lang }) => {
+    const response = getQuickResponse(text.toLowerCase(), lang);
+    if (response) {
+      const cacheKey = `${text.toLowerCase()}_${lang}`;
+      responseCache.set(cacheKey, response);
+      prewarmedCount++;
+    }
+  });
+  
+  // Also cache emergency messages
+  responseCache.set('emergency_en', hospitalConfig.voiceAssistant.emergencyMessage.en);
+  responseCache.set('emergency_hi', hospitalConfig.voiceAssistant.emergencyMessage.hi);
+  prewarmedCount += 2;
+  
+  console.log(`✅ Pre-warmed cache with ${prewarmedCount} common responses`);
+}
+
+// Pre-warm cache on module load
+prewarmCache();
+
 module.exports = {
   resolveUserQuery,
   isEmergency,
-  isAfterOpdHours
+  isAfterOpdHours,
+  prewarmCache
 };
