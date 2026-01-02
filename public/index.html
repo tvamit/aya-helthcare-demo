@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Streaming Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin: 20px 0;
+        }
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .mute-btn {
+            background-color: #4CAF50;
+            color: white;
+            font-size: 18px;
+            padding: 15px 30px;
+            min-width: 150px;
+        }
+        .mute-btn:hover:not(:disabled) {
+            background-color: #45a049;
+        }
+        .mute-btn.muted {
+            background-color: #f44336;
+        }
+        .mute-btn.muted:hover:not(:disabled) {
+            background-color: #da190b;
+        }
+        .status {
+            text-align: center;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .status.connected {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .status.disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .status.streaming {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+        .info {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #e7f3ff;
+            border-left: 4px solid #2196F3;
+            border-radius: 4px;
+        }
+        .info h3 {
+            margin-top: 0;
+            color: #1976D2;
+        }
+        .info ul {
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Voice Conversation</h1>
+
+        <div id="status" class="status disconnected">
+            Connecting...
+        </div>
+
+        <div class="controls">
+            <button id="muteBtn" class="mute-btn">🔇 Muted</button>
+        </div>
+
+        <div class="info">
+            <h3>Phone-like Conversation:</h3>
+            <ul>
+                <li>Conversation starts automatically when you open this page</li>
+                <li>Click the mute button to unmute and start speaking</li>
+                <li>Click again to mute when you don't want to send audio</li>
+                <li>Received audio plays automatically in real-time</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        let ws;
+        let mediaRecorder;
+        let audioContext;
+        let audioQueue = [];
+        let isPlaying = false;
+        let isMuted = true;
+        let mediaStream = null;
+
+        const muteBtn = document.getElementById('muteBtn');
+        const statusDiv = document.getElementById('status');
+
+        // Connect to WebSocket server
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}`;
+
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                console.log('========================================');
+                console.log('✅ WebSocket CONNECTED');
+                console.log('========================================');
+                updateStatus('Connected', 'connected');
+            };
+
+            ws.onmessage = async (event) => {
+                console.log('\n📨 MESSAGE RECEIVED');
+                console.log('Data type:', typeof event.data);
+                console.log('Data:', event.data);
+
+                // Check if message is text (JSON) or binary (audio blob)
+                if (typeof event.data === 'string') {
+                    console.log('→ Processing as TEXT/JSON message');
+                    try {
+                        const message = JSON.parse(event.data);
+                        console.log('→ Parsed JSON:', message);
+
+                        if (message.type === 'WELCOME_AUDIO') {
+                            console.log('🎵 WELCOME_AUDIO message detected!');
+                            console.log('→ Audio URL:', message.url);
+                            console.log('→ Language:', message.lang);
+                            console.log('→ Calling playWelcomeAudio()...');
+                            await playWelcomeAudio(message.url);
+                        } else {
+                            console.log('→ Unknown message type:', message.type);
+                        }
+                    } catch (e) {
+                        console.error('❌ Error parsing JSON message:', e);
+                        console.error('Raw data:', event.data);
+                    }
+                } else {
+                    // Binary audio data
+                    console.log('→ Processing as BINARY audio data');
+                    console.log('→ Size:', event.data.size, 'bytes');
+                    await playAudio(event.data);
+                }
+            };
+
+            ws.onclose = () => {
+                console.log('\n========================================');
+                console.log('❌ WebSocket DISCONNECTED');
+                console.log('========================================');
+                console.log('Will attempt to reconnect in 3 seconds...');
+                updateStatus('Disconnected - Reconnecting...', 'disconnected');
+
+                // Reconnect after 3 seconds
+                setTimeout(() => {
+                    console.log('→ Attempting to reconnect...');
+                    connectWebSocket();
+                }, 3000);
+            };
+
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+            };
+        }
+
+        // Update status display
+        function updateStatus(message, className) {
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${className}`;
+        }
+
+        // Initialize microphone and start continuous recording
+        async function initializeMicrophone() {
+            try {
+                mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+                // Create MediaRecorder to capture audio
+                mediaRecorder = new MediaRecorder(mediaStream, {
+                    mimeType: 'audio/webm;codecs=opus'
+                });
+
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0 && ws.readyState === WebSocket.OPEN && !isMuted) {
+                        // Only send audio chunk to server if not muted
+                        ws.send(event.data);
+                        console.log('Sent audio chunk:', event.data.size, 'bytes');
+                    }
+                };
+
+                mediaRecorder.start(100); // Capture in 100ms chunks continuously
+
+                updateStatus('In Call (Muted)', 'connected');
+                console.log('Microphone initialized - muted by default');
+            } catch (error) {
+                console.error('Error accessing microphone:', error);
+                alert('Error accessing microphone. Please grant permission to use this app.');
+                updateStatus('Microphone Access Denied', 'disconnected');
+            }
+        }
+
+        // Toggle mute/unmute
+        function toggleMute() {
+            isMuted = !isMuted;
+
+            if (isMuted) {
+                muteBtn.textContent = '🔇 Muted';
+                muteBtn.classList.add('muted');
+                updateStatus('In Call (Muted)', 'connected');
+                console.log('Microphone muted');
+            } else {
+                muteBtn.textContent = '🔊 Unmuted';
+                muteBtn.classList.remove('muted');
+                updateStatus('In Call (Speaking)', 'streaming');
+                console.log('Microphone unmuted');
+            }
+        }
+
+        // Play welcome audio using HTML5 Audio element
+        async function playWelcomeAudio(audioUrl) {
+            console.log('\n========================================');
+            console.log('🔊 PLAY WELCOME AUDIO FUNCTION CALLED');
+            console.log('========================================');
+            console.log('Audio URL:', audioUrl);
+
+            try {
+                updateStatus('Playing Welcome Message...', 'streaming');
+
+                const audio = new Audio(audioUrl);
+                console.log('→ Audio element created');
+
+                // Handle audio loading
+                audio.onloadstart = () => {
+                    console.log('→ Audio loading started...');
+                };
+
+                audio.onloadeddata = () => {
+                    console.log('→ Audio data loaded successfully!');
+                    console.log('→ Duration:', audio.duration, 'seconds');
+                };
+
+                audio.oncanplay = () => {
+                    console.log('→ Audio ready to play!');
+                };
+
+                // Handle audio errors
+                audio.onerror = (error) => {
+                    console.error('❌ AUDIO ERROR:');
+                    console.error('Error event:', error);
+                    console.error('Audio error code:', audio.error?.code);
+                    console.error('Audio error message:', audio.error?.message);
+                    console.error('Audio src:', audio.src);
+                    updateStatus('In Call (Muted)', 'connected');
+                };
+
+                // Update status when audio ends
+                audio.onended = () => {
+                    console.log('✅ Welcome audio finished playing');
+                    updateStatus('In Call (Muted)', 'connected');
+                };
+
+                audio.onplay = () => {
+                    console.log('▶️  Audio playback started!');
+                };
+
+                audio.onpause = () => {
+                    console.log('⏸️  Audio paused');
+                };
+
+                // Play the audio
+                console.log('→ Attempting to play audio...');
+                const playPromise = audio.play();
+
+                if (playPromise !== undefined) {
+                    playPromise
+                        .then(() => {
+                            console.log('✅ audio.play() resolved successfully');
+                        })
+                        .catch((error) => {
+                            console.error('❌ Autoplay prevented by browser:');
+                            console.error('Error:', error.name, '-', error.message);
+                            console.error('This is usually due to browser autoplay policy.');
+                            console.error('User interaction may be required to play audio.');
+                            updateStatus('In Call (Muted) - Click unmute to hear audio', 'connected');
+                        });
+                }
+            } catch (error) {
+                console.error('\n❌ PLAYBACK ERROR:');
+                console.error('Error name:', error.name);
+                console.error('Error message:', error.message);
+                console.error('Error stack:', error.stack);
+                updateStatus('In Call (Muted)', 'connected');
+            }
+            console.log('========================================\n');
+        }
+
+        // Play received audio
+        async function playAudio(audioData) {
+            try {
+                // Initialize audio context if not already done
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+
+                // Convert blob to array buffer
+                const arrayBuffer = await audioData.arrayBuffer();
+
+                // Decode audio data
+                const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+                // Add to queue
+                audioQueue.push(audioBuffer);
+
+                // Start playing if not already playing
+                if (!isPlaying) {
+                    playNextInQueue();
+                }
+            } catch (error) {
+                console.error('Error playing audio:', error);
+            }
+        }
+
+        // Play audio from queue
+        function playNextInQueue() {
+            if (audioQueue.length === 0) {
+                isPlaying = false;
+                return;
+            }
+
+            isPlaying = true;
+            const audioBuffer = audioQueue.shift();
+
+            const source = audioContext.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(audioContext.destination);
+
+            source.onended = () => {
+                playNextInQueue();
+            };
+
+            source.start(0);
+            console.log('Playing audio chunk');
+        }
+
+        // Event listener for mute button
+        muteBtn.addEventListener('click', toggleMute);
+
+        // Initialize everything on page load
+        async function initialize() {
+            connectWebSocket();
+            // Wait a bit for WebSocket to connect, then initialize microphone
+            setTimeout(async () => {
+                await initializeMicrophone();
+            }, 1000);
+        }
+
+        // Start everything when page loads
+        initialize();
+    </script>
+</body>
+</html>

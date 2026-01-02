@@ -1,0 +1,25 @@
+{
+  "watch": [
+    "server.js",
+    "services/**/*.js",
+    "config/**/*.js",
+    "config/**/*.json",
+    "public/**/*.html",
+    "public/**/*.js",
+    "public/**/*.css",
+    ".env"
+  ],
+  "ignore": [
+    "node_modules",
+    "public/welcome_*.wav",
+    "*.log",
+    "*.tmp"
+  ],
+  "ext": "js,json,html,css,env",
+  "env": {
+    "NODE_ENV": "development"
+  },
+  "verbose": true,
+  "restartable": "rs",
+  "delay": 1000
+}

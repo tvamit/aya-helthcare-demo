@@ -1,0 +1,26 @@
+{
+  "welcome": {
+    "hi": "नमस्ते। मैं आया हूँ। आप लाइफलाइन मल्टी-स्पेशलिटी हॉस्पिटल से बात कर रहे हैं।\nमैं आपकी कैसे मदद कर सकती हूँ?",
+    "en": "Hello. I am Aya. \nYou are speaking with Lifeline Multi-Specialty Hospital.\nHow can I help you?"
+  },
+  "errors": {
+    "piperNotFound": "Piper binary not found. Please ensure Piper is installed correctly.",
+    "modelsNotFound": "Voice models not found. Please ensure all required models are downloaded.",
+    "microphoneAccess": "Error accessing microphone. Please grant permission to use this app.",
+    "unsupportedLanguage": "Unsupported language"
+  },
+  "status": {
+    "validating": "Validating Piper TTS setup...",
+    "piperFound": "Piper binary found",
+    "modelsFound": "All voice models found",
+    "ttsReady": "TTS system ready",
+    "serverRunning": "Server is running on",
+    "wsReady": "WebSocket server is ready",
+    "newConnection": "NEW WEBSOCKET CONNECTION",
+    "generatingAudio": "Generating welcome audio...",
+    "audioGenerated": "Welcome audio generated",
+    "messageSent": "Welcome message sent successfully",
+    "callEnded": "Call ended (Client disconnected)",
+    "cleanedUp": "Cleaned up"
+  }
+}
