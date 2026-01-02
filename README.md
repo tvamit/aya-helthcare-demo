@@ -8,6 +8,9 @@ Real-time voice conversation application using Node.js, Express, WebSocket, Pipe
 - 🔇 Mute/Unmute functionality (no start/stop buttons)
 - 🎙️ Real-time audio streaming via WebSocket
 - 🗣️ Multi-language TTS welcome messages (Hindi & English)
+- 🤖 AI-powered hospital information assistant using LLM
+- ⚡ Smart query resolution (rule-based + AI fallback)
+- 🚑 Priority emergency detection
 - 🔄 Auto-restart during development with nodemon
 - 🏗️ Modular architecture following best practices
 
@@ -18,6 +21,7 @@ Real-time voice conversation application using Node.js, Express, WebSocket, Pipe
 - **Express**: Web application framework
 - **WebSocket (ws)**: Real-time bidirectional communication
 - **Piper TTS**: High-quality text-to-speech
+- **LLM Integration**: Ollama / OpenAI / Anthropic support
 - **dotenv**: Environment variable management
 - **nodemon**: Development auto-restart
 
@@ -31,16 +35,21 @@ Real-time voice conversation application using Node.js, Express, WebSocket, Pipe
 ```
 aya-helthcare-demo/
 ├── config/
-│   ├── messages.json          # All static messages and text
-│   └── piper.config.js        # Piper TTS configuration
+│   ├── messages.json          # Static UI messages and text
+│   ├── hospital.config.json   # Hospital information database
+│   ├── piper.config.js        # Piper TTS configuration
+│   └── llm.config.js          # LLM provider configuration
 ├── services/
 │   ├── piperValidator.js      # Validates Piper installation
 │   ├── ttsService.js          # Text-to-speech generation
+│   ├── llmService.js          # LLM integration (Ollama/OpenAI/Claude)
+│   ├── aiResolver.js          # Smart query resolution engine
 │   └── websocketHandler.js    # WebSocket connection handling
 ├── public/
 │   └── index.html             # Client-side UI
 ├── server.js                  # Main server entry point
 ├── .env                       # Environment variables
+├── .gitignore                 # Git ignore rules
 ├── nodemon.json              # Nodemon configuration
 ├── package.json              # Dependencies and scripts
 └── README.md                 # This file
@@ -115,10 +124,49 @@ Edit `config/piper.config.js` to adjust:
 
 ### Changing Default Language
 
-Edit `services/websocketHandler.js`, line 21:
+Edit `services/websocketHandler.js`, line 25:
 ```javascript
 const lang = 'en'; // Change to 'hi' for Hindi
 ```
+
+### Configuring LLM (AI Assistant)
+
+Edit `.env` to configure your LLM provider:
+
+```bash
+# Use Ollama (local)
+LLM_PROVIDER=ollama
+LLM_MODEL=llama3.1:8b
+OLLAMA_BASE_URL=http://localhost:11434
+
+# Or use OpenAI
+LLM_PROVIDER=openai
+LLM_MODEL=gpt-3.5-turbo
+OPENAI_API_KEY=your_api_key_here
+
+# Or use Anthropic (Claude)
+LLM_PROVIDER=anthropic
+LLM_MODEL=claude-3-haiku-20240307
+ANTHROPIC_API_KEY=your_api_key_here
+```
+
+### Customizing Hospital Information
+
+Edit `config/hospital.config.json` to update:
+- Hospital name, location, contact details
+- Department information
+- Bed capacity and facilities
+- Doctor information
+- Services offered
+- Operating hours
+
+### Adjusting AI Behavior
+
+Edit `config/llm.config.js` to modify:
+- System prompt (AI personality and rules)
+- Temperature (response creativity: 0.0-1.0)
+- Max tokens (response length)
+- Timeout and retry settings
 
 ## How It Works
 
@@ -147,6 +195,40 @@ const lang = 'en'; // Change to 'hi' for Hindi
 - Real-time audio decoded using Web Audio API
 - Audio chunks queued and played sequentially
 - `AudioContext` manages audio playback
+
+### AI Query Resolution (Smart Response System)
+
+The system uses a **3-tier approach** for answering user queries:
+
+#### 1. 🚑 Emergency Detection (Highest Priority)
+- Instant pattern matching for emergency keywords
+- Examples: "emergency", "ambulance", "urgent", "help"
+- Provides immediate emergency contact information
+- No AI processing delay
+
+#### 2. ⚡ Rule-Based Quick Responses
+- Fast responses for common queries
+- Covers: OPD hours, ICU info, pharmacy, visiting hours, departments
+- < 10ms response time
+- No LLM required
+
+#### 3. 🤖 LLM-Powered Complex Queries
+- Handles nuanced, complex questions
+- Uses hospital context for accurate answers
+- Examples: specific department queries, detailed facility questions
+- Fallback for unmatched patterns
+
+**Example Flow:**
+```
+User: "I need an ambulance"
+→ Emergency detected → Instant response
+
+User: "What are your OPD hours?"
+→ Rule matched → Quick response
+
+User: "Do you have cardiologists available on weekends?"
+→ LLM consulted → Context-aware response
+```
 
 ## API
 

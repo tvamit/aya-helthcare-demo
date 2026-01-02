@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test AI Query</title>
+</head>
+<body>
+    <h1>Test AI Query</h1>
+    <button onclick="testQuery()">Send Test Query</button>
+    <div id="output"></div>
+
+    <script>
+        let ws;
+
+        function connect() {
+            ws = new WebSocket('ws://localhost:5000');
+
+            ws.onopen = () => {
+                document.getElementById('output').innerHTML += '<p>✅ Connected</p>';
+            };
+
+            ws.onmessage = (event) => {
+                console.log('Received:', event.data);
+                const data = JSON.parse(event.data);
+                document.getElementById('output').innerHTML += `<p>📨 Received: ${data.type} - ${data.text || data.url}</p>`;
+            };
+        }
+
+        function testQuery() {
+            const query = {
+                type: 'USER_QUERY',
+                text: 'What are your OPD hours?',
+                lang: 'en'
+            };
+
+            console.log('Sending query:', query);
+            ws.send(JSON.stringify(query));
+            document.getElementById('output').innerHTML += '<p>📤 Sent: ' + query.text + '</p>';
+        }
+
+        connect();
+    </script>
+</body>
+</html>

@@ -1,0 +1,156 @@
+{
+  "hospital": {
+    "name": "Lifeline Multi-Specialty Hospital",
+    "shortName": "Lifeline Hospital",
+    "type": "Multi-Specialty",
+    "location": {
+      "city": "Ahmedabad",
+      "state": "Gujarat",
+      "country": "India",
+      "address": "Near City Center, Ahmedabad, Gujarat 380001"
+    },
+    "contact": {
+      "phone": "+91-79-XXXXXXXX",
+      "emergency": "108",
+      "email": "info@lifelinehospital.in",
+      "website": "www.lifelinehospital.in"
+    }
+  },
+
+  "availability": {
+    "emergency": "24x7",
+    "pharmacy": "24x7",
+    "ambulance": "24x7",
+    "opd": {
+      "hours": "09:00 AM to 08:00 PM",
+      "days": "Monday to Saturday",
+      "closed": "Sunday (Emergency services available)"
+    },
+    "visitingHours": {
+      "morning": "11:00 AM - 01:00 PM",
+      "evening": "05:00 PM - 07:00 PM"
+    }
+  },
+
+  "capacity": {
+    "totalBeds": 250,
+    "departments": {
+      "generalWard": 80,
+      "icu": 40,
+      "emergency": 30,
+      "maternity": 35,
+      "pediatric": 25,
+      "privateRooms": 40
+    },
+    "ventilators": 20,
+    "ambulances": 5,
+    "opdRooms": 12,
+    "operationTheatres": 6
+  },
+
+  "floors": {
+    "ground": ["Emergency", "OPD", "Pharmacy", "Reception"],
+    "first": ["ICU", "Operation Theatre", "Laboratory"],
+    "second": ["General Ward", "Diagnostics"],
+    "third": ["Maternity", "Pediatric"],
+    "fourth": ["Private Rooms", "Deluxe Rooms"]
+  },
+
+  "departments": [
+    "Cardiology",
+    "Neurology",
+    "Orthopedics",
+    "Pediatrics",
+    "Gynecology",
+    "General Medicine",
+    "Emergency Medicine",
+    "Oncology",
+    "Nephrology",
+    "Gastroenterology",
+    "ENT",
+    "Ophthalmology",
+    "Dermatology",
+    "Psychiatry"
+  ],
+
+  "services": {
+    "insurance": {
+      "cashless": true,
+      "providers": ["LIC", "HDFC Ergo", "Star Health", "ICICI Lombard", "Bajaj Allianz"],
+      "note": "Cashless facility available for approved insurance providers"
+    },
+    "diagnostics": [
+      "Laboratory (Blood Tests, Urine Tests)",
+      "X-Ray",
+      "CT Scan",
+      "MRI",
+      "Ultrasound",
+      "ECG",
+      "Echo Cardiography",
+      "Endoscopy"
+    ],
+    "powerBackup": true,
+    "wheelchair": true,
+    "accessibility": true,
+    "parking": {
+      "available": true,
+      "capacity": 100,
+      "charges": "Free for 2 hours, ₹20/hour thereafter"
+    },
+    "cafeteria": true,
+    "atm": true
+  },
+
+  "doctors": {
+    "total": 45,
+    "specialists": 30,
+    "generalPhysicians": 15,
+    "onCall24x7": [
+      "Emergency Physician",
+      "Gynecologist",
+      "Anesthetist",
+      "Cardiologist",
+      "Pediatrician"
+    ]
+  },
+
+  "costs": {
+    "consultation": {
+      "general": "₹500",
+      "specialist": "₹800-₹1500",
+      "emergency": "₹1000"
+    },
+    "note": "Actual costs may vary based on treatment and doctor availability"
+  },
+
+  "voiceAssistant": {
+    "welcomeMessage": {
+      "hi": "नमस्ते। मैं आया हूँ। आप लाइफलाइन मल्टी-स्पेशलिटी हॉस्पिटल से बात कर रहे हैं।\nमैं आपकी कैसे मदद कर सकती हूँ?",
+      "en": "Hello. I am Aya. \nYou are speaking with Lifeline Multi-Specialty Hospital.\nHow can I help you?"
+    },
+    "emergencyMessage": {
+      "hi": "आपातकाल समझा गया है। कृपया शांत रहें। हमारी एम्बुलेंस सेवा 24x7 उपलब्ध है। आप 108 पर कॉल कर सकते हैं या अपना स्थान बताइए।",
+      "en": "Emergency understood. Please stay calm. Our ambulance service is available 24x7. You can call 108 or tell me your location."
+    },
+    "afterOpdHoursMessage": {
+      "hi": "इस समय ओपीडी बंद है। ओपीडी समय सुबह 9 बजे से शाम 8 बजे तक है। आपातकालीन सेवाएं 24x7 उपलब्ध हैं।",
+      "en": "OPD is currently closed. OPD hours are 9 AM to 8 PM. Emergency services are available 24x7."
+    }
+  },
+
+  "rules": {
+    "emergencyAlwaysPriority": true,
+    "paymentNeverBlocksEmergency": true,
+    "doctorChoiceSubjectToAvailability": true,
+    "confidentialityMaintained": true
+  },
+
+  "commonQuestions": {
+    "ambulance": "Ambulance services are available 24x7. Call 108 for immediate assistance.",
+    "emergency": "Emergency services are available 24 hours. Please visit our Emergency department on the Ground Floor.",
+    "visiting": "Visiting hours are 11 AM - 1 PM and 5 PM - 7 PM daily.",
+    "pharmacy": "Pharmacy is open 24x7 on the Ground Floor.",
+    "reports": "Lab reports are available after 24 hours. You can collect them from the Laboratory on the First Floor.",
+    "payment": "We accept cash, cards, UPI, and insurance. Cashless facility available for approved insurers."
+  }
+}

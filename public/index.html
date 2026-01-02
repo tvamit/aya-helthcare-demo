@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Audio Streaming Demo</title>
+    <title>Aya Healthcare Voice Assistant</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -27,6 +27,7 @@
             gap: 10px;
             justify-content: center;
             margin: 20px 0;
+            flex-wrap: wrap;
         }
         button {
             padding: 12px 24px;
@@ -56,6 +57,24 @@
         .mute-btn.muted:hover:not(:disabled) {
             background-color: #da190b;
         }
+        .ask-btn {
+            background-color: #2196F3;
+            color: white;
+            font-size: 18px;
+            padding: 15px 30px;
+            min-width: 150px;
+        }
+        .ask-btn:hover:not(:disabled) {
+            background-color: #0b7dda;
+        }
+        .ask-btn.listening {
+            background-color: #FF5722;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
         .status {
             text-align: center;
             padding: 15px;
@@ -75,6 +94,21 @@
             background-color: #d1ecf1;
             color: #0c5460;
         }
+        .status.processing {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        .transcript {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            border-left: 4px solid #6c757d;
+        }
+        .transcript p {
+            margin: 0;
+            color: #495057;
+        }
         .info {
             margin-top: 20px;
             padding: 15px;
@@ -93,38 +127,171 @@
 </head>
 <body>
     <div class="container">
-        <h1>Voice Conversation</h1>
+        <h1>🏥 Aya Healthcare Assistant</h1>
 
         <div id="status" class="status disconnected">
             Connecting...
         </div>
 
         <div class="controls">
-            <button id="muteBtn" class="mute-btn">🔇 Muted</button>
+            <button id="muteBtn" class="mute-btn muted">🔇 Muted</button>
+            <button id="askBtn" class="ask-btn">🤖 Ask AI</button>
+        </div>
+
+        <div id="transcript" class="transcript" style="display:none;">
+            <p id="transcriptText"></p>
         </div>
 
         <div class="info">
-            <h3>Phone-like Conversation:</h3>
+            <h3>How to Use:</h3>
             <ul>
-                <li>Conversation starts automatically when you open this page</li>
-                <li>Click the mute button to unmute and start speaking</li>
-                <li>Click again to mute when you don't want to send audio</li>
-                <li>Received audio plays automatically in real-time</li>
+                <li><strong>Option 1:</strong> Click "Muted" to unmute → Speak continuously → Click "Unmuted" to mute and send</li>
+                <li><strong>Option 2:</strong> Click "Ask AI" button → Speak your question → AI responds</li>
+                <li><strong>Examples:</strong> "OPD का समय क्या है?", "What are visiting hours?", "I need emergency help"</li>
             </ul>
         </div>
     </div>
 
     <script>
         let ws;
-        let mediaRecorder;
         let audioContext;
         let audioQueue = [];
         let isPlaying = false;
-        let isMuted = true;
+        let recognition = null;
+        let isListening = false;
+
+        // Microphone recording variables
         let mediaStream = null;
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let isMuted = true;
 
         const muteBtn = document.getElementById('muteBtn');
+        const askBtn = document.getElementById('askBtn');
         const statusDiv = document.getElementById('status');
+        const transcriptDiv = document.getElementById('transcript');
+        const transcriptText = document.getElementById('transcriptText');
+
+        // Initialize Speech Recognition
+        function initSpeechRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+            if (!SpeechRecognition) {
+                console.error('Speech Recognition not supported');
+                askBtn.disabled = true;
+                askBtn.textContent = '❌ Not Supported';
+                return;
+            }
+
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = true;
+            recognition.lang = 'hi-IN'; // Hindi by default, will auto-detect
+
+            recognition.onstart = () => {
+                console.log('🎤 Speech recognition started');
+                isListening = true;
+                askBtn.classList.add('listening');
+                askBtn.textContent = '🎤 Listening...';
+                updateStatus('Listening to your question...', 'processing');
+                transcriptDiv.style.display = 'block';
+                transcriptText.textContent = 'Listening...';
+            };
+
+            recognition.onresult = (event) => {
+                console.log('\n========================================');
+                console.log('🎤 SPEECH RECOGNITION RESULT');
+                console.log('========================================');
+                console.log('Results count:', event.results.length);
+                console.log('Result index:', event.resultIndex);
+
+                const transcript = Array.from(event.results)
+                    .map(result => result[0])
+                    .map(result => result.transcript)
+                    .join('');
+
+                console.log('Transcript:', transcript);
+                console.log('Confidence:', event.results[0][0].confidence);
+                console.log('Is final:', event.results[event.results.length - 1].isFinal);
+
+                transcriptText.textContent = `You: ${transcript}`;
+
+                // If final result
+                if (event.results[event.results.length - 1].isFinal) {
+                    console.log('\n✅ FINAL TRANSCRIPT - Sending to AI');
+                    console.log('========================================\n');
+                    sendQueryToAI(transcript);
+                } else {
+                    console.log('→ Interim result, waiting for final...');
+                    console.log('========================================\n');
+                }
+            };
+
+            recognition.onerror = (event) => {
+                console.error('Speech recognition error:', event.error);
+                isListening = false;
+                askBtn.classList.remove('listening');
+                askBtn.textContent = '🤖 Ask AI';
+                updateStatus('Error: ' + event.error, 'disconnected');
+            };
+
+            recognition.onend = () => {
+                console.log('Speech recognition ended');
+                isListening = false;
+                askBtn.classList.remove('listening');
+                askBtn.textContent = '🤖 Ask AI';
+            };
+        }
+
+        // Send query to AI via WebSocket
+        function sendQueryToAI(text) {
+            console.log('\n========================================');
+            console.log('📤 SENDING QUERY TO AI');
+            console.log('========================================');
+            console.log('Text:', text);
+            console.log('WebSocket state:', ws ? ws.readyState : 'null');
+            console.log('WebSocket OPEN constant:', WebSocket.OPEN);
+
+            if (!text) {
+                console.error('❌ Cannot send query: text is empty');
+                return;
+            }
+
+            if (!ws) {
+                console.error('❌ Cannot send query: WebSocket is null');
+                return;
+            }
+
+            if (ws.readyState !== WebSocket.OPEN) {
+                console.error('❌ Cannot send query: WebSocket not open. State:', ws.readyState);
+                return;
+            }
+
+            console.log('✅ All checks passed, sending query...');
+            updateStatus('Processing your question...', 'processing');
+
+            // Auto-detect language (simple heuristic: check for Devanagari script)
+            const hasHindi = /[\u0900-\u097F]/.test(text);
+            const detectedLang = hasHindi ? 'hi' : 'en';
+
+            const query = {
+                type: 'USER_QUERY',
+                text: text,
+                lang: detectedLang
+            };
+
+            console.log('→ Detected language:', detectedLang);
+            console.log('Query object:', JSON.stringify(query, null, 2));
+
+            try {
+                ws.send(JSON.stringify(query));
+                console.log('✅ Query sent successfully!');
+                console.log('========================================\n');
+            } catch (error) {
+                console.error('❌ Error sending query:', error);
+                console.error('========================================\n');
+            }
+        }
 
         // Connect to WebSocket server
         function connectWebSocket() {
@@ -141,46 +308,52 @@
             };
 
             ws.onmessage = async (event) => {
-                console.log('\n📨 MESSAGE RECEIVED');
+                console.log('\n========================================');
+                console.log('📨 MESSAGE RECEIVED FROM SERVER');
+                console.log('========================================');
+                console.log('Timestamp:', new Date().toLocaleTimeString());
                 console.log('Data type:', typeof event.data);
-                console.log('Data:', event.data);
+                console.log('Data size:', event.data.length || event.data.size);
 
                 // Check if message is text (JSON) or binary (audio blob)
                 if (typeof event.data === 'string') {
                     console.log('→ Processing as TEXT/JSON message');
+                    console.log('→ Raw data:', event.data.substring(0, 200));
+
                     try {
                         const message = JSON.parse(event.data);
-                        console.log('→ Parsed JSON:', message);
+                        console.log('→ Parsed JSON:', JSON.stringify(message, null, 2));
+                        console.log('→ Message type:', message.type);
 
                         if (message.type === 'WELCOME_AUDIO') {
                             console.log('🎵 WELCOME_AUDIO message detected!');
-                            console.log('→ Audio URL:', message.url);
-                            console.log('→ Language:', message.lang);
-                            console.log('→ Calling playWelcomeAudio()...');
                             await playWelcomeAudio(message.url);
+                        } else if (message.type === 'AI_RESPONSE') {
+                            console.log('🤖 AI_RESPONSE message detected!');
+                            console.log('→ Response text:', message.text);
+                            console.log('→ Response audio URL:', message.url);
+                            await handleAIResponse(message);
                         } else {
-                            console.log('→ Unknown message type:', message.type);
+                            console.log('⚠️  Unknown message type:', message.type);
                         }
                     } catch (e) {
                         console.error('❌ Error parsing JSON message:', e);
-                        console.error('Raw data:', event.data);
+                        console.error('→ Error stack:', e.stack);
                     }
                 } else {
                     // Binary audio data
                     console.log('→ Processing as BINARY audio data');
-                    console.log('→ Size:', event.data.size, 'bytes');
                     await playAudio(event.data);
                 }
+                console.log('========================================\n');
             };
 
             ws.onclose = () => {
                 console.log('\n========================================');
                 console.log('❌ WebSocket DISCONNECTED');
                 console.log('========================================');
-                console.log('Will attempt to reconnect in 3 seconds...');
                 updateStatus('Disconnected - Reconnecting...', 'disconnected');
 
-                // Reconnect after 3 seconds
                 setTimeout(() => {
                     console.log('→ Attempting to reconnect...');
                     connectWebSocket();
@@ -192,154 +365,237 @@
             };
         }
 
+        // Handle AI response
+        async function handleAIResponse(message) {
+            console.log('AI Response:', message.text);
+
+            // Show response in transcript
+            transcriptText.textContent = `AI: ${message.text}`;
+
+            // Play audio if available
+            if (message.url) {
+                await playWelcomeAudio(message.url);
+            }
+
+            updateStatus('In Call (Muted)', 'connected');
+        }
+
         // Update status display
         function updateStatus(message, className) {
             statusDiv.textContent = message;
             statusDiv.className = `status ${className}`;
         }
 
-        // Initialize microphone and start continuous recording
-        async function initializeMicrophone() {
-            try {
-                mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // Initialize microphone for recording
+        async function initMicrophone() {
+            console.log('\n========================================');
+            console.log('🎤 INITIALIZING MICROPHONE');
+            console.log('========================================');
 
-                // Create MediaRecorder to capture audio
+            try {
+                mediaStream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        channelCount: 1,
+                        sampleRate: 16000,
+                        echoCancellation: true,
+                        noiseSuppression: true
+                    }
+                });
+
+                console.log('✅ Microphone access granted');
+                console.log('→ Audio tracks:', mediaStream.getAudioTracks().length);
+
+                // Check supported MIME types
+                let mimeType = 'audio/webm;codecs=opus';
+
+                if (!MediaRecorder.isTypeSupported(mimeType)) {
+                    console.log('⚠️  audio/webm;codecs=opus not supported, trying audio/webm');
+                    mimeType = 'audio/webm';
+                }
+
+                if (!MediaRecorder.isTypeSupported(mimeType)) {
+                    console.error('❌ No supported audio format found');
+                    return;
+                }
+
+                console.log('→ Using MIME type:', mimeType);
+
                 mediaRecorder = new MediaRecorder(mediaStream, {
-                    mimeType: 'audio/webm;codecs=opus'
+                    mimeType: mimeType
                 });
 
                 mediaRecorder.ondataavailable = (event) => {
-                    if (event.data.size > 0 && ws.readyState === WebSocket.OPEN && !isMuted) {
-                        // Only send audio chunk to server if not muted
-                        ws.send(event.data);
-                        console.log('Sent audio chunk:', event.data.size, 'bytes');
+                    console.log('→ Audio chunk received:', event.data.size, 'bytes');
+                    if (event.data.size > 0) {
+                        audioChunks.push(event.data);
                     }
                 };
 
-                mediaRecorder.start(100); // Capture in 100ms chunks continuously
+                mediaRecorder.onstop = async () => {
+                    console.log('\n========================================');
+                    console.log('🎤 RECORDING STOPPED');
+                    console.log('========================================');
+                    console.log('→ Total chunks collected:', audioChunks.length);
 
-                updateStatus('In Call (Muted)', 'connected');
-                console.log('Microphone initialized - muted by default');
+                    if (audioChunks.length === 0) {
+                        console.log('⚠️  No audio chunks collected');
+                        updateStatus('No audio recorded. Please try again.', 'disconnected');
+                        return;
+                    }
+
+                    const audioBlob = new Blob(audioChunks, { type: mimeType });
+                    console.log('→ Audio blob created');
+                    console.log('→ Blob size:', audioBlob.size, 'bytes');
+                    console.log('→ Blob type:', audioBlob.type);
+
+                    audioChunks = [];
+
+                    // Validate audio size
+                    if (audioBlob.size < 1000) {
+                        console.log('⚠️  Audio too short (< 1000 bytes), not sending');
+                        updateStatus('Audio too short. Please speak for at least 2-3 seconds.', 'disconnected');
+                        return;
+                    }
+
+                    // Convert to ArrayBuffer and send
+                    console.log('→ Converting to ArrayBuffer...');
+                    const arrayBuffer = await audioBlob.arrayBuffer();
+                    console.log('→ ArrayBuffer size:', arrayBuffer.byteLength, 'bytes');
+
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        console.log('→ Sending audio to server...');
+                        updateStatus('Processing your question...', 'processing');
+                        ws.send(arrayBuffer);
+                        console.log('✅ Audio sent successfully!');
+                        console.log('========================================\n');
+                    } else {
+                        console.error('❌ WebSocket not connected');
+                        updateStatus('Connection error. Please try again.', 'disconnected');
+                    }
+                };
+
+                muteBtn.disabled = false;
+                console.log('✅ MediaRecorder initialized');
+                console.log('========================================\n');
+
             } catch (error) {
-                console.error('Error accessing microphone:', error);
-                alert('Error accessing microphone. Please grant permission to use this app.');
-                updateStatus('Microphone Access Denied', 'disconnected');
+                console.error('❌ Microphone initialization error:', error);
+                muteBtn.disabled = true;
+                muteBtn.textContent = '❌ Mic Error';
             }
         }
 
-        // Toggle mute/unmute
-        function toggleMute() {
-            isMuted = !isMuted;
+        // Handle mute/unmute button
+        function handleMuteButton() {
+            console.log('\n========================================');
+            console.log('🔘 MUTE BUTTON CLICKED');
+            console.log('========================================');
+            console.log('→ Current state: isMuted =', isMuted);
+
+            if (!mediaRecorder) {
+                console.error('❌ MediaRecorder not initialized');
+                return;
+            }
 
             if (isMuted) {
-                muteBtn.textContent = '🔇 Muted';
-                muteBtn.classList.add('muted');
-                updateStatus('In Call (Muted)', 'connected');
-                console.log('Microphone muted');
+                // Unmute - Start recording
+                console.log('→ Action: UNMUTING (start recording)');
+                audioChunks = [];
+
+                try {
+                    // Start recording without timeslice - collect all until stop()
+                    mediaRecorder.start();
+                    console.log('→ MediaRecorder.start() called (no timeslice - continuous recording)');
+                    console.log('→ MediaRecorder state:', mediaRecorder.state);
+
+                    isMuted = false;
+                    muteBtn.classList.remove('muted');
+                    muteBtn.textContent = '🎤 Unmuted';
+                    updateStatus('Recording... Speak now! (speak for at least 3 seconds)', 'streaming');
+                    console.log('✅ Recording started');
+                } catch (error) {
+                    console.error('❌ Error starting recording:', error);
+                }
             } else {
-                muteBtn.textContent = '🔊 Unmuted';
-                muteBtn.classList.remove('muted');
-                updateStatus('In Call (Speaking)', 'streaming');
-                console.log('Microphone unmuted');
+                // Mute - Stop recording and send
+                console.log('→ Action: MUTING (stop recording and send)');
+
+                try {
+                    mediaRecorder.stop();
+                    console.log('→ MediaRecorder.stop() called');
+                    console.log('→ MediaRecorder state:', mediaRecorder.state);
+
+                    isMuted = true;
+                    muteBtn.classList.add('muted');
+                    muteBtn.textContent = '🔇 Muted';
+                    console.log('✅ Recording stopped, audio will be sent when processed');
+                } catch (error) {
+                    console.error('❌ Error stopping recording:', error);
+                }
+            }
+
+            console.log('========================================\n');
+        }
+
+        // Ask AI button handler
+        function handleAskButton() {
+            if (!recognition) {
+                alert('Speech recognition not available');
+                return;
+            }
+
+            if (isListening) {
+                recognition.stop();
+            } else {
+                recognition.start();
             }
         }
 
-        // Play welcome audio using HTML5 Audio element
+        // Play welcome audio
         async function playWelcomeAudio(audioUrl) {
-            console.log('\n========================================');
-            console.log('🔊 PLAY WELCOME AUDIO FUNCTION CALLED');
-            console.log('========================================');
-            console.log('Audio URL:', audioUrl);
+            console.log('\n🔊 Playing audio:', audioUrl);
 
             try {
-                updateStatus('Playing Welcome Message...', 'streaming');
-
                 const audio = new Audio(audioUrl);
-                console.log('→ Audio element created');
-
-                // Handle audio loading
-                audio.onloadstart = () => {
-                    console.log('→ Audio loading started...');
-                };
 
                 audio.onloadeddata = () => {
-                    console.log('→ Audio data loaded successfully!');
-                    console.log('→ Duration:', audio.duration, 'seconds');
+                    console.log('→ Audio loaded, duration:', audio.duration);
                 };
 
-                audio.oncanplay = () => {
-                    console.log('→ Audio ready to play!');
-                };
-
-                // Handle audio errors
                 audio.onerror = (error) => {
-                    console.error('❌ AUDIO ERROR:');
-                    console.error('Error event:', error);
-                    console.error('Audio error code:', audio.error?.code);
-                    console.error('Audio error message:', audio.error?.message);
-                    console.error('Audio src:', audio.src);
-                    updateStatus('In Call (Muted)', 'connected');
+                    console.error('❌ Audio error:', error);
                 };
 
-                // Update status when audio ends
                 audio.onended = () => {
-                    console.log('✅ Welcome audio finished playing');
-                    updateStatus('In Call (Muted)', 'connected');
+                    console.log('✅ Audio finished');
                 };
 
-                audio.onplay = () => {
-                    console.log('▶️  Audio playback started!');
-                };
-
-                audio.onpause = () => {
-                    console.log('⏸️  Audio paused');
-                };
-
-                // Play the audio
-                console.log('→ Attempting to play audio...');
                 const playPromise = audio.play();
 
                 if (playPromise !== undefined) {
                     playPromise
-                        .then(() => {
-                            console.log('✅ audio.play() resolved successfully');
-                        })
+                        .then(() => console.log('✅ Audio playing'))
                         .catch((error) => {
-                            console.error('❌ Autoplay prevented by browser:');
-                            console.error('Error:', error.name, '-', error.message);
-                            console.error('This is usually due to browser autoplay policy.');
-                            console.error('User interaction may be required to play audio.');
-                            updateStatus('In Call (Muted) - Click unmute to hear audio', 'connected');
+                            console.error('❌ Autoplay blocked:', error.message);
                         });
                 }
             } catch (error) {
-                console.error('\n❌ PLAYBACK ERROR:');
-                console.error('Error name:', error.name);
-                console.error('Error message:', error.message);
-                console.error('Error stack:', error.stack);
-                updateStatus('In Call (Muted)', 'connected');
+                console.error('❌ Playback error:', error);
             }
-            console.log('========================================\n');
         }
 
-        // Play received audio
+        // Play received audio chunks
         async function playAudio(audioData) {
             try {
-                // Initialize audio context if not already done
                 if (!audioContext) {
                     audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 }
 
-                // Convert blob to array buffer
                 const arrayBuffer = await audioData.arrayBuffer();
-
-                // Decode audio data
                 const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
 
-                // Add to queue
                 audioQueue.push(audioBuffer);
 
-                // Start playing if not already playing
                 if (!isPlaying) {
                     playNextInQueue();
                 }
@@ -348,7 +604,7 @@
             }
         }
 
-        // Play audio from queue
+        // Play next audio in queue
         function playNextInQueue() {
             if (audioQueue.length === 0) {
                 isPlaying = false;
@@ -367,22 +623,22 @@
             };
 
             source.start(0);
-            console.log('Playing audio chunk');
         }
 
-        // Event listener for mute button
-        muteBtn.addEventListener('click', toggleMute);
+        // Event listeners
+        muteBtn.addEventListener('click', handleMuteButton);
+        askBtn.addEventListener('click', handleAskButton);
 
-        // Initialize everything on page load
-        async function initialize() {
+        // Initialize everything
+        function initialize() {
+            console.log('🚀 Initializing Aya Healthcare Assistant...');
             connectWebSocket();
-            // Wait a bit for WebSocket to connect, then initialize microphone
-            setTimeout(async () => {
-                await initializeMicrophone();
-            }, 1000);
+            initSpeechRecognition();
+            initMicrophone();
+            console.log('✅ Initialization complete!');
         }
 
-        // Start everything when page loads
+        // Start on page load
         initialize();
     </script>
 </body>
