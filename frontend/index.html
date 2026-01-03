@@ -104,7 +104,8 @@
       }
 
       @keyframes speaking {
-        0%, 100% {
+        0%,
+        100% {
           transform: scale(1);
           box-shadow: 0 10px 30px rgba(56, 239, 125, 0.4);
         }
@@ -348,10 +349,14 @@
 
       // Generate unique sessionId for this user session
       // Use localStorage to persist sessionId across page refreshes, or generate new one
-      let sessionId = localStorage.getItem('sessionId');
+      let sessionId = localStorage.getItem("sessionId");
       if (!sessionId) {
-        sessionId = 'session-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-        localStorage.setItem('sessionId', sessionId);
+        sessionId =
+          "session-" +
+          Date.now() +
+          "-" +
+          Math.random().toString(36).substr(2, 9);
+        localStorage.setItem("sessionId", sessionId);
       }
 
       let mediaRecorder;
@@ -452,10 +457,15 @@
           const formData = new FormData();
           formData.append("audio", audioBlob, "recording.wav");
 
-          const response = await fetch(`${API_URL}/ai/voice-query?sessionId=${encodeURIComponent(sessionId)}`, {
-            method: "POST",
-            body: formData,
-          });
+          const response = await fetch(
+            `${API_URL}/ai/voice-query?sessionId=${encodeURIComponent(
+              sessionId
+            )}`,
+            {
+              method: "POST",
+              body: formData,
+            }
+          );
 
           if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
@@ -491,7 +501,7 @@
           updateStatus("Aya Speaking...", "Click mic to stop");
 
           // Play audio
-          currentAudio.play().catch(err => {
+          currentAudio.play().catch((err) => {
             console.error("Audio play failed:", err);
           });
 
@@ -520,8 +530,11 @@
       // Add message to conversation
       function addMessage(text, type, allowReplay = false) {
         // Log message addition to console for debugging
-        console.log(`💬 Adding ${type === "user" ? "User" : "AI"} Message:`, text);
-        
+        console.log(
+          `💬 Adding ${type === "user" ? "User" : "AI"} Message:`,
+          text
+        );
+
         const messageDiv = document.createElement("div");
         messageDiv.className = `message ${type}`;
         messageDiv.textContent = text;
@@ -592,10 +605,13 @@
           console.error("Error resetting session:", error);
           // Continue with UI reset even if backend call fails
         }
-        
+
         // Clear UI conversation
         conversation.innerHTML = "";
-        updateStatus("Ready to Help", "Press the mic button and ask your question");
+        updateStatus(
+          "Ready to Help",
+          "Press the mic button and ask your question"
+        );
       });
 
       // Toggle stats

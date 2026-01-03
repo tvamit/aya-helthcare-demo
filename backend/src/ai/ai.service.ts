@@ -822,7 +822,14 @@ export class AiService {
     }
 
     // Extract date - improved extraction with day names
-    if (!session.appointmentDate) {
+    // Allow re-extraction if user is in suggesting_alternatives state (changing date)
+    const allowDateReExtraction = !session.appointmentDate ||
+                                   session.state === 'suggesting_alternatives' ||
+                                   /(?:schedule|book|रखो|करो|बुक)/i.test(query);
+
+    if (allowDateReExtraction) {
+      const previousDate = session.appointmentDate;
+
       const todayPattern = /(?:today|आज)/i;
       const tomorrowPattern = /(?:tomorrow|कल)/i;
 
@@ -949,10 +956,21 @@ export class AiService {
           }
         }
       }
+
+      // Log if date was updated
+      if (previousDate !== session.appointmentDate && session.appointmentDate) {
+        console.log(`📅 Date ${previousDate ? 'updated' : 'extracted'}: ${previousDate?.toDateString() || 'none'} → ${session.appointmentDate.toDateString()}`);
+      }
     }
 
     // Extract time - improved extraction with more formats
-    if (!session.appointmentTime) {
+    // Allow re-extraction if user is in suggesting_alternatives state (changing time)
+    const allowTimeReExtraction = !session.appointmentTime ||
+                                   session.state === 'suggesting_alternatives' ||
+                                   /(?:schedule|book|रखो|करो|बुक)/i.test(query);
+
+    if (allowTimeReExtraction) {
+      const previousTime = session.appointmentTime;
       const timePatterns = [
         // Format: HH a.m./p.m. (e.g., "9 a.m", "9 p.m", "9 a", "9 p")
         {
@@ -1051,6 +1069,11 @@ export class AiService {
             break;
           }
         }
+      }
+
+      // Log if time was updated
+      if (previousTime !== session.appointmentTime && session.appointmentTime) {
+        console.log(`⏰ Time ${previousTime ? 'updated' : 'extracted'}: ${previousTime || 'none'} → ${session.appointmentTime}`);
       }
     }
 
