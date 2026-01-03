@@ -32,7 +32,7 @@ interface BookingSession {
   problem?: string;
   conversationHistory: Array<{ role: string; content: string }>;
   lastUpdated: Date;
-  preferredLanguage?: 'en' | 'hi'; // Track user's preferred language
+  preferredLanguage?: "en" | "hi"; // Track user's preferred language
 }
 
 @Injectable()
@@ -91,7 +91,7 @@ export class AiService {
   /**
    * Get preferred language for a session
    */
-  getPreferredLanguage(sessionId: string): 'en' | 'hi' | undefined {
+  getPreferredLanguage(sessionId: string): "en" | "hi" | undefined {
     const session = this.bookingSessions.get(sessionId);
     return session?.preferredLanguage;
   }
@@ -100,7 +100,10 @@ export class AiService {
    * Convert speech to text using Whisper
    * Returns both transcription and detected language
    */
-  async speechToText(audioPath: string, preferredLanguage?: 'en' | 'hi'): Promise<{ text: string; language: string }> {
+  async speechToText(
+    audioPath: string,
+    preferredLanguage?: "en" | "hi"
+  ): Promise<{ text: string; language: string }> {
     try {
       const formData = new FormData();
       formData.append("audio", fs.createReadStream(audioPath));
@@ -122,7 +125,7 @@ export class AiService {
 
       return {
         text: response.data.text,
-        language: response.data.language
+        language: response.data.language,
       };
     } catch (error) {
       throw new HttpException(
@@ -343,7 +346,15 @@ export class AiService {
       return null;
     }
 
-    const dayOrder = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const dayOrder = [
+      "Sunday",
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+    ];
     const workingDays = doctor.schedule.map((s: any) => s.day);
 
     // Start from tomorrow
@@ -355,8 +366,12 @@ export class AiService {
       const dayName = dayOrder[searchDate.getDay()];
       if (workingDays.includes(dayName)) {
         // Format date nicely
-        const options: Intl.DateTimeFormatOptions = { weekday: 'long', month: 'long', day: 'numeric' };
-        return searchDate.toLocaleDateString('en-US', options);
+        const options: Intl.DateTimeFormatOptions = {
+          weekday: "long",
+          month: "long",
+          day: "numeric",
+        };
+        return searchDate.toLocaleDateString("en-US", options);
       }
       searchDate.setDate(searchDate.getDate() + 1);
     }
@@ -527,6 +542,17 @@ export class AiService {
     if (this.bookingSessions.has(sessionId)) {
       this.bookingSessions.delete(sessionId);
     }
+  }
+
+  /**
+   * Format date in clear, unambiguous format: "Monday, January 5"
+   */
+  private formatDateClearly(date: Date): string {
+    return date.toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric'
+    });
   }
 
   /**
@@ -823,9 +849,10 @@ export class AiService {
 
     // Extract date - improved extraction with day names
     // Allow re-extraction if user is in suggesting_alternatives state (changing date)
-    const allowDateReExtraction = !session.appointmentDate ||
-                                   session.state === 'suggesting_alternatives' ||
-                                   /(?:schedule|book|रखो|करो|बुक)/i.test(query);
+    const allowDateReExtraction =
+      !session.appointmentDate ||
+      session.state === "suggesting_alternatives" ||
+      /(?:schedule|book|रखो|करो|बुक)/i.test(query);
 
     if (allowDateReExtraction) {
       const previousDate = session.appointmentDate;
@@ -907,10 +934,10 @@ export class AiService {
               session.appointmentDate = targetDate;
             }
           } else {
-            // Check for just day name (assume next occurrence)
+            // Check for just day name (assume next occurrence) - allow "the" prefix and "schedule" prefix
             const dayPattern =
-              /^(monday|tuesday|wednesday|thursday|friday|saturday|sunday|सोमवार|मंगलवार|बुधवार|गुरुवार|शुक्रवार|शनिवार|रविवार)$/i;
-            const dayMatch = query.trim().match(dayPattern);
+              /(?:schedule|book|the)?\s*(monday|tuesday|wednesday|thursday|friday|saturday|sunday|सोमवार|मंगलवार|बुधवार|गुरुवार|शुक्रवार|शनिवार|रविवार)/i;
+            const dayMatch = query.match(dayPattern);
             if (dayMatch && dayMatch[1]) {
               const dayName = dayMatch[1].toLowerCase();
               const targetDay = dayNames[dayName];
@@ -919,7 +946,7 @@ export class AiService {
                 const currentDay = today.getDay();
                 let daysUntilTarget = targetDay - currentDay;
 
-                // If target day is today or past, add 7 days (next week)
+                // If target day is today or in the past, get next occurrence (7 days ahead)
                 if (daysUntilTarget <= 0) {
                   daysUntilTarget += 7;
                 }
@@ -930,7 +957,7 @@ export class AiService {
                 session.appointmentDate = targetDate;
               }
             } else {
-              // Try numeric date patterns
+              // Try numeric date patterns - parse as DD/MM/YYYY format
               const datePatterns = [
                 /(\d{1,2}[-\/]\d{1,2}[-\/]\d{2,4})/,
                 /(?:next|अगले)\s+(?:week|सप्ताह)/i,
@@ -941,11 +968,23 @@ export class AiService {
                 const match = query.match(pattern);
                 if (match) {
                   try {
-                    const parsedDate = new Date(match[0] || match[1]);
-                    if (!isNaN(parsedDate.getTime())) {
-                      parsedDate.setHours(0, 0, 0, 0);
-                      session.appointmentDate = parsedDate;
-                      break;
+                    // Parse as DD/MM/YYYY format
+                    const parts = (match[0] || match[1]).split(/[-\/]/);
+                    if (parts.length >= 2) {
+                      let day = parseInt(parts[0]);
+                      let month = parseInt(parts[1]);
+                      let year =
+                        parts.length > 2
+                          ? parseInt(parts[2])
+                          : new Date().getFullYear();
+                      if (year < 100) year += 2000; // Handle 2-digit years
+
+                      const parsedDate = new Date(year, month - 1, day);
+                      if (!isNaN(parsedDate.getTime())) {
+                        parsedDate.setHours(0, 0, 0, 0);
+                        session.appointmentDate = parsedDate;
+                        break;
+                      }
                     }
                   } catch (e) {
                     // Ignore parsing errors
@@ -959,15 +998,18 @@ export class AiService {
 
       // Log if date was updated
       if (previousDate !== session.appointmentDate && session.appointmentDate) {
-        console.log(`📅 Date ${previousDate ? 'updated' : 'extracted'}: ${previousDate?.toDateString() || 'none'} → ${session.appointmentDate.toDateString()}`);
+        console.log(
+          `📅 Date ${previousDate ? "updated" : "extracted"}: ${previousDate?.toDateString() || "none"} → ${session.appointmentDate.toDateString()}`
+        );
       }
     }
 
     // Extract time - improved extraction with more formats
     // Allow re-extraction if user is in suggesting_alternatives state (changing time)
-    const allowTimeReExtraction = !session.appointmentTime ||
-                                   session.state === 'suggesting_alternatives' ||
-                                   /(?:schedule|book|रखो|करो|बुक)/i.test(query);
+    const allowTimeReExtraction =
+      !session.appointmentTime ||
+      session.state === "suggesting_alternatives" ||
+      /(?:schedule|book|रखो|करो|बुक)/i.test(query);
 
     if (allowTimeReExtraction) {
       const previousTime = session.appointmentTime;
@@ -1073,7 +1115,9 @@ export class AiService {
 
       // Log if time was updated
       if (previousTime !== session.appointmentTime && session.appointmentTime) {
-        console.log(`⏰ Time ${previousTime ? 'updated' : 'extracted'}: ${previousTime || 'none'} → ${session.appointmentTime}`);
+        console.log(
+          `⏰ Time ${previousTime ? "updated" : "extracted"}: ${previousTime || "none"} → ${session.appointmentTime}`
+        );
       }
     }
 
@@ -1429,7 +1473,7 @@ export class AiService {
             `मरीज: ${session.patientName}\n` +
             `उम्र: ${session.patientAge}\n` +
             `फोन: ${session.patientPhone}\n` +
-            `तारीख: ${session.appointmentDate.toLocaleDateString()}\n` +
+            `तारीख: ${this.formatDateClearly(session.appointmentDate)}\n` +
             `समय: ${session.appointmentTime}\n` +
             `क्या आप बुक करना चाहते हैं? (हां/नहीं)`
           : `Please confirm your appointment:\n` +
@@ -1437,7 +1481,7 @@ export class AiService {
             `Patient: ${session.patientName}\n` +
             `Age: ${session.patientAge}\n` +
             `Phone: ${session.patientPhone}\n` +
-            `Date: ${session.appointmentDate.toLocaleDateString()}\n` +
+            `Date: ${this.formatDateClearly(session.appointmentDate)}\n` +
             `Time: ${session.appointmentTime}\n` +
             `Do you want to book? (yes/no)`;
 
@@ -1498,7 +1542,7 @@ export class AiService {
       let response = scheduleText;
 
       if (session.appointmentDate) {
-        const dateStr = session.appointmentDate.toLocaleDateString();
+        const dateStr = this.formatDateClearly(session.appointmentDate);
         if (availableTimes.length > 0) {
           response += isHindi
             ? `\n${dateStr} के लिए उपलब्ध समय: ${availableTimes.slice(0, 5).join(", ")}`
@@ -1562,7 +1606,7 @@ export class AiService {
       // NOW that we have patient details, inform about the doctor and ask for scheduling
       const doctor = this.findDoctorById(session.doctorId);
       const dateStr = session.appointmentDate
-        ? session.appointmentDate.toLocaleDateString()
+        ? this.formatDateClearly(session.appointmentDate)
         : isHindi
           ? "आज"
           : "today";
@@ -1669,7 +1713,10 @@ export class AiService {
           response += isHindi ? `\n${scheduleText}` : `\n${scheduleText}`;
 
           // Suggest the next available day for this doctor
-          const nextAvailableDay = this.findNextAvailableDay(doctor, session.appointmentDate);
+          const nextAvailableDay = this.findNextAvailableDay(
+            doctor,
+            session.appointmentDate
+          );
           if (nextAvailableDay) {
             response += isHindi
               ? `\n\nसुझाव: ${doctor.name} अगली बार ${nextAvailableDay} को उपलब्ध हैं।`
@@ -1713,7 +1760,7 @@ export class AiService {
             `मरीज: ${session.patientName}\n` +
             `उम्र: ${session.patientAge}\n` +
             `फोन: ${session.patientPhone}\n` +
-            `तारीख: ${session.appointmentDate.toLocaleDateString()}\n` +
+            `तारीख: ${this.formatDateClearly(session.appointmentDate)}\n` +
             `समय: ${session.appointmentTime}\n` +
             `क्या आप बुक करना चाहते हैं? (हां/नहीं)`
           : `Please confirm your appointment:\n` +
@@ -1721,7 +1768,7 @@ export class AiService {
             `Patient: ${session.patientName}\n` +
             `Age: ${session.patientAge}\n` +
             `Phone: ${session.patientPhone}\n` +
-            `Date: ${session.appointmentDate.toLocaleDateString()}\n` +
+            `Date: ${this.formatDateClearly(session.appointmentDate)}\n` +
             `Time: ${session.appointmentTime}\n` +
             `Do you want to book? (yes/no)`;
 
@@ -1752,7 +1799,7 @@ export class AiService {
           `मरीज: ${session.patientName}\n` +
           `उम्र: ${session.patientAge}\n` +
           `फोन: ${session.patientPhone}\n` +
-          `तारीख: ${session.appointmentDate.toLocaleDateString()}\n` +
+          `तारीख: ${this.formatDateClearly(session.appointmentDate)}\n` +
           `समय: ${session.appointmentTime}\n` +
           `क्या आप बुक करना चाहते हैं? (हां/नहीं)`
         : `Please confirm your appointment:\n` +
@@ -1760,7 +1807,7 @@ export class AiService {
           `Patient: ${session.patientName}\n` +
           `Age: ${session.patientAge}\n` +
           `Phone: ${session.patientPhone}\n` +
-          `Date: ${session.appointmentDate.toLocaleDateString()}\n` +
+          `Date: ${this.formatDateClearly(session.appointmentDate)}\n` +
           `Time: ${session.appointmentTime}\n` +
           `Do you want to book? (yes/no)`;
 
@@ -1790,7 +1837,7 @@ export class AiService {
 
         const doctor = suggestion.doctors[0];
         const dateStr = session.appointmentDate
-          ? session.appointmentDate.toLocaleDateString()
+          ? this.formatDateClearly(session.appointmentDate)
           : isHindi
             ? "आज"
             : "today";
@@ -1898,16 +1945,19 @@ export class AiService {
         previousState.appointmentDate !== session.appointmentDate &&
         session.appointmentDate
       ) {
+        // Format date clearly: "Monday, January 5"
+        const formattedDate = this.formatDateClearly(session.appointmentDate);
+
         const dateResponses = isHindi
           ? [
-              `बिल्कुल! ${session.appointmentDate.toLocaleDateString()} की date नोट कर ली।`,
-              `ठीक है, ${session.appointmentDate.toLocaleDateString()} schedule कर लिया।`,
-              `Perfect! ${session.appointmentDate.toLocaleDateString()} fix कर दिया है।`,
+              `बिल्कुल! ${formattedDate} की date नोट कर ली।`,
+              `ठीक है, ${formattedDate} schedule कर लिया।`,
+              `Perfect! ${formattedDate} fix कर दिया है।`,
             ]
           : [
-              `Perfect! I've set ${session.appointmentDate.toLocaleDateString()} for your appointment.`,
-              `Great! ${session.appointmentDate.toLocaleDateString()} works.`,
-              `Done! I've scheduled it for ${session.appointmentDate.toLocaleDateString()}.`,
+              `Perfect! I've set ${formattedDate} for your appointment.`,
+              `Great! ${formattedDate} works.`,
+              `Done! I've scheduled it for ${formattedDate}.`,
             ];
         acknowledgment =
           dateResponses[Math.floor(Math.random() * dateResponses.length)];
@@ -2013,7 +2063,7 @@ export class AiService {
               `मरीज: ${session.patientName}\n` +
               `उम्र: ${session.patientAge}\n` +
               `फोन: ${session.patientPhone}\n` +
-              `तारीख: ${session.appointmentDate.toLocaleDateString()}\n` +
+              `तारीख: ${this.formatDateClearly(session.appointmentDate)}\n` +
               `समय: ${session.appointmentTime}\n` +
               `क्या आप बुक करना चाहते हैं? (हां/नहीं)`
             : `Please confirm your appointment:\n` +
@@ -2021,7 +2071,7 @@ export class AiService {
               `Patient: ${session.patientName}\n` +
               `Age: ${session.patientAge}\n` +
               `Phone: ${session.patientPhone}\n` +
-              `Date: ${session.appointmentDate.toLocaleDateString()}\n` +
+              `Date: ${this.formatDateClearly(session.appointmentDate)}\n` +
               `Time: ${session.appointmentTime}\n` +
               `Do you want to book? (yes/no)`;
 
@@ -2055,14 +2105,14 @@ export class AiService {
                 : `${hours}:${minutes} AM`;
         const combinedResponses = isHindi
           ? [
-              `बिल्कुल perfect! ${session.appointmentDate.toLocaleDateString()} को ${displayTime} पर appointment fix हो गई।`,
-              `ठीक है! ${session.appointmentDate.toLocaleDateString()} को ${displayTime} schedule कर दिया है।`,
-              `Great! ${session.appointmentDate.toLocaleDateString()} को ${displayTime} पर आपकी appointment है।`,
+              `बिल्कुल perfect! ${this.formatDateClearly(session.appointmentDate)} को ${displayTime} पर appointment fix हो गई।`,
+              `ठीक है! ${this.formatDateClearly(session.appointmentDate)} को ${displayTime} schedule कर दिया है।`,
+              `Great! ${this.formatDateClearly(session.appointmentDate)} को ${displayTime} पर आपकी appointment है।`,
             ]
           : [
-              `Perfect! I've scheduled your appointment for ${session.appointmentDate.toLocaleDateString()} at ${displayTime}.`,
-              `Excellent! Your appointment is set for ${session.appointmentDate.toLocaleDateString()} at ${displayTime}.`,
-              `Great! I've booked you for ${session.appointmentDate.toLocaleDateString()} at ${displayTime}.`,
+              `Perfect! I've scheduled your appointment for ${this.formatDateClearly(session.appointmentDate)} at ${displayTime}.`,
+              `Excellent! Your appointment is set for ${this.formatDateClearly(session.appointmentDate)} at ${displayTime}.`,
+              `Great! I've booked you for ${this.formatDateClearly(session.appointmentDate)} at ${displayTime}.`,
             ];
         acknowledgment =
           combinedResponses[
@@ -2092,7 +2142,7 @@ export class AiService {
                 `मरीज: ${session.patientName}\n` +
                 `उम्र: ${session.patientAge}\n` +
                 `फोन: ${session.patientPhone}\n` +
-                `तारीख: ${session.appointmentDate.toLocaleDateString()}\n` +
+                `तारीख: ${this.formatDateClearly(session.appointmentDate)}\n` +
                 `समय: ${session.appointmentTime}\n` +
                 `क्या आप बुक करना चाहते हैं? (हां/नहीं)`
               : `\n\nPlease confirm your appointment:\n` +
@@ -2100,7 +2150,7 @@ export class AiService {
                 `Patient: ${session.patientName}\n` +
                 `Age: ${session.patientAge}\n` +
                 `Phone: ${session.patientPhone}\n` +
-                `Date: ${session.appointmentDate.toLocaleDateString()}\n` +
+                `Date: ${this.formatDateClearly(session.appointmentDate)}\n` +
                 `Time: ${session.appointmentTime}\n` +
                 `Do you want to book? (yes/no)`);
 
@@ -2324,16 +2374,19 @@ export class AiService {
         previousState.appointmentDate !== session.appointmentDate &&
         session.appointmentDate
       ) {
+        // Format date clearly: "Monday, January 5"
+        const formattedDate = this.formatDateClearly(session.appointmentDate);
+
         const dateResponses = isHindi
           ? [
-              `बिल्कुल! ${session.appointmentDate.toLocaleDateString()} की date नोट कर ली। `,
-              `ठीक है, ${session.appointmentDate.toLocaleDateString()} schedule कर लिया। `,
-              `Perfect! ${session.appointmentDate.toLocaleDateString()} fix कर दिया है। `,
+              `बिल्कुल! ${formattedDate} की date नोट कर ली। `,
+              `ठीक है, ${formattedDate} schedule कर लिया। `,
+              `Perfect! ${formattedDate} fix कर दिया है। `,
             ]
           : [
-              `Perfect! I've set ${session.appointmentDate.toLocaleDateString()} for your appointment. `,
-              `Great! ${session.appointmentDate.toLocaleDateString()} works. `,
-              `Done! I've scheduled it for ${session.appointmentDate.toLocaleDateString()}. `,
+              `Perfect! I've set ${formattedDate} for your appointment. `,
+              `Great! ${formattedDate} works. `,
+              `Done! I've scheduled it for ${formattedDate}. `,
             ];
         finalResponse =
           dateResponses[Math.floor(Math.random() * dateResponses.length)];
@@ -2436,7 +2489,7 @@ export class AiService {
               `मरीज: ${session.patientName}\n` +
               `उम्र: ${session.patientAge}\n` +
               `फोन: ${session.patientPhone}\n` +
-              `तारीख: ${session.appointmentDate.toLocaleDateString()}\n` +
+              `तारीख: ${this.formatDateClearly(session.appointmentDate)}\n` +
               `समय: ${session.appointmentTime}\n` +
               `क्या आप बुक करना चाहते हैं? (हां/नहीं)`
             : `Please confirm your appointment:\n` +
@@ -2444,7 +2497,7 @@ export class AiService {
               `Patient: ${session.patientName}\n` +
               `Age: ${session.patientAge}\n` +
               `Phone: ${session.patientPhone}\n` +
-              `Date: ${session.appointmentDate.toLocaleDateString()}\n` +
+              `Date: ${this.formatDateClearly(session.appointmentDate)}\n` +
               `Time: ${session.appointmentTime}\n` +
               `Do you want to book? (yes/no)`;
 
@@ -2478,14 +2531,14 @@ export class AiService {
                 : `${hours}:${minutes} AM`;
         const combinedResponses = isHindi
           ? [
-              `बिल्कुल perfect! ${session.appointmentDate.toLocaleDateString()} को ${displayTime} पर appointment fix हो गई। `,
-              `ठीक है! ${session.appointmentDate.toLocaleDateString()} को ${displayTime} schedule कर दिया है। `,
-              `Great! ${session.appointmentDate.toLocaleDateString()} को ${displayTime} पर आपकी appointment है। `,
+              `बिल्कुल perfect! ${this.formatDateClearly(session.appointmentDate)} को ${displayTime} पर appointment fix हो गई। `,
+              `ठीक है! ${this.formatDateClearly(session.appointmentDate)} को ${displayTime} schedule कर दिया है। `,
+              `Great! ${this.formatDateClearly(session.appointmentDate)} को ${displayTime} पर आपकी appointment है। `,
             ]
           : [
-              `Perfect! I've scheduled your appointment for ${session.appointmentDate.toLocaleDateString()} at ${displayTime}. `,
-              `Excellent! Your appointment is set for ${session.appointmentDate.toLocaleDateString()} at ${displayTime}. `,
-              `Great! I've booked you for ${session.appointmentDate.toLocaleDateString()} at ${displayTime}. `,
+              `Perfect! I've scheduled your appointment for ${this.formatDateClearly(session.appointmentDate)} at ${displayTime}. `,
+              `Excellent! Your appointment is set for ${this.formatDateClearly(session.appointmentDate)} at ${displayTime}. `,
+              `Great! I've booked you for ${this.formatDateClearly(session.appointmentDate)} at ${displayTime}. `,
             ];
         finalResponse =
           combinedResponses[
@@ -2512,7 +2565,7 @@ export class AiService {
           `मरीज: ${session.patientName}\n` +
           `उम्र: ${session.patientAge}\n` +
           `फोन: ${session.patientPhone}\n` +
-          `तारीख: ${session.appointmentDate.toLocaleDateString()}\n` +
+          `तारीख: ${this.formatDateClearly(session.appointmentDate)}\n` +
           `समय: ${session.appointmentTime}\n` +
           `क्या आप बुक करना चाहते हैं? (हां/नहीं)`
         : `Please confirm your appointment:\n` +
@@ -2520,7 +2573,7 @@ export class AiService {
           `Patient: ${session.patientName}\n` +
           `Age: ${session.patientAge}\n` +
           `Phone: ${session.patientPhone}\n` +
-          `Date: ${session.appointmentDate.toLocaleDateString()}\n` +
+          `Date: ${this.formatDateClearly(session.appointmentDate)}\n` +
           `Time: ${session.appointmentTime}\n` +
           `Do you want to book? (yes/no)`;
 
@@ -2560,7 +2613,7 @@ export class AiService {
 
     // Track preferred language in session (only set on first query or if not set)
     if (!session.preferredLanguage) {
-      session.preferredLanguage = isHindi ? 'hi' : 'en';
+      session.preferredLanguage = isHindi ? "hi" : "en";
       console.log(`🌐 User language detected: ${session.preferredLanguage}`);
     }
 
@@ -2725,7 +2778,7 @@ RESPONSE GUIDELINES:
     // Use word boundary matching to avoid false positives
     // e.g., "mein" should match "mein hu" but not "name is"
     return hindiWords.some((word) => {
-      const regex = new RegExp(`\\b${word}\\b`, 'i');
+      const regex = new RegExp(`\\b${word}\\b`, "i");
       return regex.test(lowerQuery);
     });
   }
