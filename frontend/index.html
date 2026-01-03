@@ -346,6 +346,14 @@
     <script>
       const API_URL = "http://localhost:3000/api";
 
+      // Generate unique sessionId for this user session
+      // Use localStorage to persist sessionId across page refreshes, or generate new one
+      let sessionId = localStorage.getItem('sessionId');
+      if (!sessionId) {
+        sessionId = 'session-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+        localStorage.setItem('sessionId', sessionId);
+      }
+
       let mediaRecorder;
       let audioChunks = [];
       let isRecording = false;
@@ -439,13 +447,12 @@
       }
 
       // Send audio to API
-      // Send audio to API
       async function sendAudioToAPI(audioBlob) {
         try {
           const formData = new FormData();
           formData.append("audio", audioBlob, "recording.wav");
 
-          const response = await fetch(`${API_URL}/ai/voice-query`, {
+          const response = await fetch(`${API_URL}/ai/voice-query?sessionId=${encodeURIComponent(sessionId)}`, {
             method: "POST",
             body: formData,
           });
@@ -462,6 +469,12 @@
             response.headers.get("X-Response-Text") || "Processing..."
           );
 
+          // Log user input to console
+          console.log("👤 User Input:", transcription);
+
+          // Log AYA response to console
+          console.log("🤖 AYA Response:", responseText);
+
           // Add to conversation
           addMessage(transcription, "user");
           addMessage(responseText, "ai", true); // true = add replay button
@@ -475,7 +488,7 @@
           voiceBtn.classList.add("speaking");
           voiceBtn.textContent = "⏹️"; // Stop icon
           voiceBtn.title = "Click to stop";
-          updateStatus("AI Speaking...", "Click mic to stop");
+          updateStatus("Aya Speaking...", "Click mic to stop");
 
           // Play audio
           currentAudio.play().catch(err => {
@@ -506,6 +519,9 @@
 
       // Add message to conversation
       function addMessage(text, type, allowReplay = false) {
+        // Log message addition to console for debugging
+        console.log(`💬 Adding ${type === "user" ? "User" : "AI"} Message:`, text);
+        
         const messageDiv = document.createElement("div");
         messageDiv.className = `message ${type}`;
         messageDiv.textContent = text;
@@ -526,7 +542,7 @@
               voiceBtn.classList.add("speaking");
               voiceBtn.textContent = "⏹️";
               voiceBtn.title = "Click to stop";
-              updateStatus("AI Speaking...", "Click mic to stop");
+              updateStatus("Aya Speaking...", "Click mic to stop");
 
               // Play audio
               currentAudio.play();
@@ -562,9 +578,24 @@
       }
 
       // Clear conversation
-      clearBtn.addEventListener("click", () => {
+      clearBtn.addEventListener("click", async () => {
+        try {
+          // Call reset endpoint to clear backend session
+          await fetch(`${API_URL}/ai/reset-session`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ sessionId }),
+          });
+        } catch (error) {
+          console.error("Error resetting session:", error);
+          // Continue with UI reset even if backend call fails
+        }
+        
+        // Clear UI conversation
         conversation.innerHTML = "";
-        updateStatus("Ready to Help");
+        updateStatus("Ready to Help", "Press the mic button and ask your question");
       });
 
       // Toggle stats

@@ -20,6 +20,9 @@ export class Appointment {
   @Column({ length: 20 })
   patientPhone: string;
 
+  @Column({ type: 'int', nullable: true })
+  patientAge: number;
+
   @Column()
   doctorId: number;
 

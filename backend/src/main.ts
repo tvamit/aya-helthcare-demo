@@ -40,9 +40,11 @@ async function bootstrap() {
   SwaggerModule.setup("api/docs", app, document);
 
   const port = process.env.PORT || 3000;
-  await app.listen(port);
+  
+  try {
+    await app.listen(port);
 
-  console.log(`
+    console.log(`
 ╔═══════════════════════════════════════════════════════════╗
 ║   🏥 Hospital AI Voice Assistant - NestJS + PostgreSQL   ║
 ║                                                           ║
@@ -55,7 +57,35 @@ async function bootstrap() {
 ║   - Whisper STT: http://localhost:5001                   ║
 ║   - Coqui TTS:   http://localhost:5002                   ║
 ╚═══════════════════════════════════════════════════════════╝
-  `);
+    `);
+  } catch (error: any) {
+    if (error.code === 'EADDRINUSE') {
+      console.error(`
+╔═══════════════════════════════════════════════════════════╗
+║   ❌ Port ${port} is already in use!                       ║
+╚═══════════════════════════════════════════════════════════╝
+
+To fix this issue, you have the following options:
+
+1. Kill the process using port ${port}:
+   lsof -ti:${port} | xargs kill -9
+
+2. Or find and kill manually:
+   lsof -i:${port}        # Find the process
+   kill -9 <PID>          # Kill using the Process ID
+
+3. Use a different port:
+   PORT=3001 npm run start:dev
+
+4. Check if another instance is running:
+   ps aux | grep node
+      `);
+      process.exit(1);
+    } else {
+      console.error('❌ Error starting server:', error);
+      process.exit(1);
+    }
+  }
 }
 
 bootstrap();

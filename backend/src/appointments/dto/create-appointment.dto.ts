@@ -10,6 +10,11 @@ export class CreateAppointmentDto {
   @IsString()
   patientPhone: string;
 
+  @ApiProperty({ example: 35, required: false })
+  @IsOptional()
+  @IsNumber()
+  patientAge?: number;
+
   @ApiProperty({ example: 1 })
   @IsNumber()
   doctorId: number;

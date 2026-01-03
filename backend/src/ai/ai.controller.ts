@@ -8,6 +8,7 @@ import {
   HttpStatus,
   Res,
   Header,
+  Query,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { ApiTags, ApiOperation, ApiConsumes, ApiBody } from "@nestjs/swagger";
@@ -65,6 +66,7 @@ export class AiController {
   )
   async handleVoiceQuery(
     @UploadedFile() file: Express.Multer.File,
+    @Query('sessionId') sessionId: string = 'default',
     @Res() res: Response
   ) {
     if (!file) {
@@ -75,11 +77,14 @@ export class AiController {
       console.log("🎤 Received audio file:", file.filename);
 
       // Step 1: Convert Speech to Text
-      const transcription = await this.aiService.speechToText(file.path);
-      console.log("📝 Transcription:", transcription);
+      // Get preferred language from session for consistency
+      const preferredLanguage = this.aiService.getPreferredLanguage(sessionId);
+      const sttResult = await this.aiService.speechToText(file.path, preferredLanguage);
+      const transcription = sttResult.text;
+      console.log("📝 Transcription:", transcription, `(language: ${sttResult.language})`);
 
       // Step 2: Process query with AI + Database
-      const aiResponse = await this.aiService.processQuery(transcription);
+      const aiResponse = await this.aiService.processQuery(transcription, sessionId);
       console.log("🤖 AI Response:", aiResponse);
 
       // Step 3: Convert Text to Speech
@@ -110,15 +115,20 @@ export class AiController {
   @ApiBody({
     schema: {
       type: "object",
+      required: ["query"],
       properties: {
         query: {
           type: "string",
           example: "ICU mein bed available hai kya?",
         },
+        sessionId: {
+          type: "string",
+          example: "default",
+        },
       },
     },
   })
-  async handleTextQuery(@Body() body: { query: string }) {
+  async handleTextQuery(@Body() body: { query: string; sessionId?: string }) {
     if (!body.query) {
       throw new HttpException("No query provided", HttpStatus.BAD_REQUEST);
     }
@@ -126,7 +136,7 @@ export class AiController {
     console.log("📝 Text Query:", body.query);
 
     try {
-      const response = await this.aiService.processQuery(body.query);
+      const response = await this.aiService.processQuery(body.query, body.sessionId || 'default');
       console.log("🤖 Response:", response);
 
       return {
@@ -140,6 +150,29 @@ export class AiController {
         error.status || HttpStatus.INTERNAL_SERVER_ERROR
       );
     }
+  }
+
+  @Post("reset-session")
+  @ApiOperation({ summary: "Reset booking session for a user" })
+  @ApiBody({
+    schema: {
+      type: "object",
+      properties: {
+        sessionId: {
+          type: "string",
+          example: "default",
+        },
+      },
+    },
+  })
+  async resetSession(@Body() body: { sessionId?: string }) {
+    const sessionId = body.sessionId || 'default';
+    this.aiService.resetSession(sessionId);
+    return {
+      success: true,
+      message: "Session reset successfully",
+      sessionId,
+    };
   }
 
   @Post("health")
